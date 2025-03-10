@@ -4,6 +4,7 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "esModuleInterop": true,
+    "types": ["node", "express", "multer", "ws", "uuid"],
     "outDir": "./dist"
   },
   "include": ["./**/*"]
