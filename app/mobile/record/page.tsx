@@ -13,9 +13,9 @@ const MobileRecord: FC = () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { exact: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          facingMode: "environment",
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
         },
         audio: false,
       });
