@@ -27,6 +27,17 @@ const MobileRecord: FC = () => {
 
       // WebSocket 연결 설정
       const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/stream`);
+      let wsReady = false;
+
+      // WebSocket 연결이 열리면 플래그 설정
+      ws.addEventListener("open", () => {
+        console.log("WebSocket connection established");
+        wsReady = true;
+      });
+
+      ws.addEventListener("error", (error) => {
+        console.error("WebSocket connection error:", error);
+      });
 
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: "video/webm;codecs=vp8,opus",
@@ -35,14 +46,24 @@ const MobileRecord: FC = () => {
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
-          // ArrayBuffer로 변환하여 전송
+
+          // WebSocket이 연결된 상태인지 확인 후 데이터 전송
           event.data.arrayBuffer().then((buffer) => {
-            ws.send(buffer);
+            if (wsReady && ws.readyState === WebSocket.OPEN) {
+              ws.send(buffer);
+            } else {
+              console.log("WebSocket not ready, skipping frame");
+            }
           });
         }
       };
 
       mediaRecorderRef.current.onstop = async () => {
+        // WebSocket 연결 종료
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+
         const blob = new Blob(recordedChunksRef.current, {
           type: "video/webm",
         });
@@ -66,8 +87,13 @@ const MobileRecord: FC = () => {
         }
       };
 
-      mediaRecorderRef.current.start(100); // 100ms 간격으로 데이터 전송
-      setIsRecording(true);
+      // WebSocket이 연결될 때까지 잠시 대기 후 녹화 시작
+      setTimeout(() => {
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current.start(100); // 100ms 간격으로 데이터 전송
+          setIsRecording(true);
+        }
+      }, 500); // 0.5초 대기
     } catch (error) {
       console.error("Error accessing camera:", error);
       setCameraError(
