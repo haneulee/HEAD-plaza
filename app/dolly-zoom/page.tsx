@@ -4,26 +4,30 @@ import { useEffect, useRef } from "react";
 
 export default function Viewer() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const mediaSourceRef = useRef<MediaSource>(new MediaSource());
+  const mediaSourceRef = useRef<MediaSource | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    mediaSourceRef.current = new MediaSource();
+
     const WS_URL =
       process.env.NEXT_PUBLIC_WS_URL || "wss://your-backend-server.com";
     socketRef.current = new WebSocket(WS_URL);
 
-    mediaSourceRef.current.addEventListener("sourceopen", () => {
-      const sourceBuffer = mediaSourceRef.current.addSourceBuffer(
-        'video/webm; codecs="vp9"'
-      );
-      if (socketRef.current) {
-        socketRef.current.onmessage = (event) => {
-          sourceBuffer.appendBuffer(event.data);
-        };
-      }
-    });
+    if (mediaSourceRef.current) {
+      mediaSourceRef.current.addEventListener("sourceopen", () => {
+        const sourceBuffer = mediaSourceRef.current?.addSourceBuffer(
+          'video/webm; codecs="vp9"'
+        );
+        if (socketRef.current && sourceBuffer) {
+          socketRef.current.onmessage = (event) => {
+            sourceBuffer.appendBuffer(event.data);
+          };
+        }
+      });
+    }
 
-    if (videoRef.current) {
+    if (videoRef.current && mediaSourceRef.current) {
       videoRef.current.src = URL.createObjectURL(mediaSourceRef.current);
     }
 
