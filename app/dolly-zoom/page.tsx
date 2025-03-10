@@ -11,7 +11,7 @@ export default function Viewer() {
     mediaSourceRef.current = new MediaSource();
 
     const WS_URL =
-      process.env.NEXT_PUBLIC_WS_URL || "wss://your-backend-server.com";
+      `${process.env.NEXT_PUBLIC_WS_URL}` || "wss://your-backend-server.com";
     socketRef.current = new WebSocket(WS_URL);
 
     if (mediaSourceRef.current) {
