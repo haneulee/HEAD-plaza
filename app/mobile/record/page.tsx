@@ -9,6 +9,7 @@ export default function Mobile() {
   const socketRef = useRef<any>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const [streaming, setStreaming] = useState(false);
+  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => {
     // 웹소켓 연결
@@ -36,6 +37,62 @@ export default function Mobile() {
         }
       };
     }
+
+    // 저장된 ICE candidate 처리 함수
+    const processIceCandidates = () => {
+      if (peerRef.current?.remoteDescription) {
+        iceCandidatesQueue.current.forEach((candidate) => {
+          peerRef.current
+            ?.addIceCandidate(new RTCIceCandidate(candidate))
+            .catch((e) =>
+              console.error("Error adding queued ICE candidate:", e)
+            );
+        });
+        iceCandidatesQueue.current = [];
+      }
+    };
+
+    socketRef.current.on(
+      "answer",
+      async (answer: RTCSessionDescriptionInit) => {
+        console.log("Received answer from viewer");
+        if (peerRef.current) {
+          try {
+            await peerRef.current.setRemoteDescription(
+              new RTCSessionDescription(answer)
+            );
+            console.log("Remote description set successfully");
+
+            // 원격 설명이 설정된 후 저장된 ICE candidate 처리
+            processIceCandidates();
+          } catch (error) {
+            console.error("Error setting remote description:", error);
+          }
+        }
+      }
+    );
+
+    socketRef.current.on(
+      "candidate",
+      async (candidate: RTCIceCandidateInit) => {
+        console.log("Received ICE candidate from viewer");
+        if (peerRef.current) {
+          if (peerRef.current.remoteDescription) {
+            try {
+              await peerRef.current.addIceCandidate(
+                new RTCIceCandidate(candidate)
+              );
+            } catch (error) {
+              console.error("Error adding ICE candidate:", error);
+            }
+          } else {
+            // 원격 설명이 아직 설정되지 않았으면 큐에 저장
+            console.log("Queueing ICE candidate");
+            iceCandidatesQueue.current.push(candidate);
+          }
+        }
+      }
+    );
 
     return () => {
       socketRef.current?.disconnect();

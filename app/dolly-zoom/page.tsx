@@ -2,7 +2,6 @@
 
 import { FC, useEffect, useRef, useState } from "react";
 
-import CameraRecorder from "../../components/CameraRecorder";
 import { io } from "socket.io-client";
 
 const DollyZoom: FC = () => {
@@ -10,6 +9,7 @@ const DollyZoom: FC = () => {
   const socketRef = useRef<any>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const [connected, setConnected] = useState(false);
+  const iceCandidatesQueue = useRef<RTCIceCandidateInit[]>([]);
 
   useEffect(() => {
     // 웹소켓 연결
@@ -41,6 +41,20 @@ const DollyZoom: FC = () => {
       };
     }
 
+    // 저장된 ICE candidate 처리 함수
+    const processIceCandidates = () => {
+      if (peerRef.current?.remoteDescription) {
+        iceCandidatesQueue.current.forEach((candidate) => {
+          peerRef.current
+            ?.addIceCandidate(new RTCIceCandidate(candidate))
+            .catch((e) =>
+              console.error("Error adding queued ICE candidate:", e)
+            );
+        });
+        iceCandidatesQueue.current = [];
+      }
+    };
+
     socketRef.current.on("offer", async (offer: RTCSessionDescriptionInit) => {
       console.log("Received offer");
       if (!peerRef.current) return;
@@ -53,6 +67,9 @@ const DollyZoom: FC = () => {
         await peerRef.current.setLocalDescription(answer);
         console.log("Sending answer");
         socketRef.current?.emit("answer", answer);
+
+        // 원격 설명이 설정된 후 저장된 ICE candidate 처리
+        processIceCandidates();
       } catch (error) {
         console.error("Error handling offer:", error);
       }
@@ -63,12 +80,19 @@ const DollyZoom: FC = () => {
       async (candidate: RTCIceCandidateInit) => {
         console.log("Received ICE candidate");
         if (peerRef.current) {
-          try {
-            await peerRef.current.addIceCandidate(
-              new RTCIceCandidate(candidate)
-            );
-          } catch (error) {
-            console.error("Error adding ICE candidate:", error);
+          // 원격 설명이 설정되었는지 확인
+          if (peerRef.current.remoteDescription) {
+            try {
+              await peerRef.current.addIceCandidate(
+                new RTCIceCandidate(candidate)
+              );
+            } catch (error) {
+              console.error("Error adding ICE candidate:", error);
+            }
+          } else {
+            // 원격 설명이 아직 설정되지 않았으면 큐에 저장
+            console.log("Queueing ICE candidate");
+            iceCandidatesQueue.current.push(candidate);
           }
         }
       }
@@ -123,10 +147,10 @@ const DollyZoom: FC = () => {
           </div>
 
           <div className="flex flex-col">
-            <h2 className="text-xl font-semibold mb-4">Camera</h2>
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+            <h2 className="text-xl font-semibold mb-4">Mobile Camera</h2>
+            <div className="aspect-video bg-black rounded-lg overflow-hidden relative">
               {!connected && (
-                <div className="flex items-center justify-center h-full text-white">
+                <div className="absolute inset-0 flex items-center justify-center text-white">
                   Connecting to server...
                 </div>
               )}
@@ -136,6 +160,20 @@ const DollyZoom: FC = () => {
                 playsInline
                 className="w-full h-full object-cover"
               />
+            </div>
+            <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+              <h3 className="font-medium text-lg mb-2">Instructions:</h3>
+              <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                <li>
+                  Open{" "}
+                  <span className="font-mono bg-gray-700 px-2 py-1 rounded">
+                    /mobile/record
+                  </span>{" "}
+                  on your phone
+                </li>
+                <li>Press "Start Streaming" to begin</li>
+                <li>Your phone camera will appear here</li>
+              </ol>
             </div>
           </div>
         </div>
