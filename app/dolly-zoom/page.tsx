@@ -1,6 +1,6 @@
 "use client";
 
-import { FC, useEffect, useRef } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 
 import CameraRecorder from "../../components/CameraRecorder";
 import { io } from "socket.io-client";
@@ -9,10 +9,16 @@ const DollyZoom: FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const socketRef = useRef<any>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     // 웹소켓 연결
-    socketRef.current = io(process.env.NEXT_PUBLIC_WS_URL);
+    socketRef.current = io(process.env.NEXT_PUBLIC_API_URL);
+
+    socketRef.current.on("connect", () => {
+      console.log("Viewer connected to signaling server");
+      setConnected(true);
+    });
 
     // PeerConnection 생성
     peerRef.current = new RTCPeerConnection({
@@ -21,6 +27,7 @@ const DollyZoom: FC = () => {
 
     if (peerRef.current && videoRef.current) {
       peerRef.current.ontrack = (event) => {
+        console.log("Received track", event.streams);
         if (videoRef.current) {
           videoRef.current.srcObject = event.streams[0];
         }
@@ -28,21 +35,44 @@ const DollyZoom: FC = () => {
 
       peerRef.current.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log("Viewer sending ICE candidate");
           socketRef.current?.emit("candidate", event.candidate);
         }
       };
     }
 
     socketRef.current.on("offer", async (offer: RTCSessionDescriptionInit) => {
+      console.log("Received offer");
       if (!peerRef.current) return;
 
-      await peerRef.current.setRemoteDescription(
-        new RTCSessionDescription(offer)
-      );
-      const answer = await peerRef.current.createAnswer();
-      await peerRef.current.setLocalDescription(answer);
-      socketRef.current?.emit("answer", answer);
+      try {
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription(offer)
+        );
+        const answer = await peerRef.current.createAnswer();
+        await peerRef.current.setLocalDescription(answer);
+        console.log("Sending answer");
+        socketRef.current?.emit("answer", answer);
+      } catch (error) {
+        console.error("Error handling offer:", error);
+      }
     });
+
+    socketRef.current.on(
+      "candidate",
+      async (candidate: RTCIceCandidateInit) => {
+        console.log("Received ICE candidate");
+        if (peerRef.current) {
+          try {
+            await peerRef.current.addIceCandidate(
+              new RTCIceCandidate(candidate)
+            );
+          } catch (error) {
+            console.error("Error adding ICE candidate:", error);
+          }
+        }
+      }
+    );
 
     return () => {
       socketRef.current?.disconnect();
@@ -95,12 +125,16 @@ const DollyZoom: FC = () => {
           <div className="flex flex-col">
             <h2 className="text-xl font-semibold mb-4">Camera</h2>
             <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              {/* <CameraRecorder /> */}
+              {!connected && (
+                <div className="flex items-center justify-center h-full text-white">
+                  Connecting to server...
+                </div>
+              )}
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
-                style={{ width: "100%", maxWidth: "800px" }}
+                className="w-full h-full object-cover"
               />
             </div>
           </div>
