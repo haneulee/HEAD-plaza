@@ -1,10 +1,10 @@
 "use client";
 
-import { FC, useEffect, useState } from "react";
-
+import { FC } from "react";
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-const DollyZoomResult: FC = () => {
+const DollyZoomResultContent: FC = () => {
   const searchParams = useSearchParams();
   const videoURL = searchParams.get("video");
 
@@ -55,6 +55,15 @@ const DollyZoomResult: FC = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// 메인 페이지 컴포넌트
+const DollyZoomResult: FC = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DollyZoomResultContent />
+    </Suspense>
   );
 };
 
