@@ -1,7 +1,52 @@
+import { FC, useEffect, useRef } from "react";
+
 import CameraRecorder from "../../components/CameraRecorder";
-import { FC } from "react";
+import { io } from "socket.io-client";
 
 const DollyZoom: FC = () => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const socketRef = useRef<any>(null);
+  const peerRef = useRef<RTCPeerConnection | null>(null);
+
+  useEffect(() => {
+    // 웹소켓 연결
+    socketRef.current = io(process.env.NEXT_PUBLIC_WS_URL);
+
+    // PeerConnection 생성
+    peerRef.current = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    if (peerRef.current && videoRef.current) {
+      peerRef.current.ontrack = (event) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = event.streams[0];
+        }
+      };
+
+      peerRef.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketRef.current?.emit("candidate", event.candidate);
+        }
+      };
+    }
+
+    socketRef.current.on("offer", async (offer: RTCSessionDescriptionInit) => {
+      if (!peerRef.current) return;
+
+      await peerRef.current.setRemoteDescription(
+        new RTCSessionDescription(offer)
+      );
+      const answer = await peerRef.current.createAnswer();
+      await peerRef.current.setLocalDescription(answer);
+      socketRef.current?.emit("answer", answer);
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container mx-auto p-8">
@@ -48,7 +93,13 @@ const DollyZoom: FC = () => {
           <div className="flex flex-col">
             <h2 className="text-xl font-semibold mb-4">Camera</h2>
             <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <CameraRecorder />
+              {/* <CameraRecorder /> */}
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                style={{ width: "100%", maxWidth: "800px" }}
+              />
             </div>
           </div>
         </div>
