@@ -336,9 +336,14 @@ const DollyZoom = () => {
           {isStreaming ? (
             <>
               <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
-              <div className="aspect-video flex-shrink-0">
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
                 <video
-                  className="w-full h-full rounded-lg object-cover"
+                  className="rounded-lg"
+                  style={{
+                    transform: "rotate(-90deg)",
+                    width: "80%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
+                    objectFit: "cover",
+                  }}
                   playsInline
                   ref={callingVideoRef}
                   autoPlay

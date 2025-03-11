@@ -416,12 +416,8 @@ const DollyZoomCamera = () => {
       formData.append("upload_preset", uploadPreset);
       formData.append("resource_type", "video");
 
-      // 비디오 최적화 옵션 (Cloudinary 변환 파라미터)
+      // 기본 최적화 옵션만 사용
       formData.append("quality", "auto:low");
-      formData.append("width", "640");
-      formData.append("height", "360");
-      formData.append("crop", "limit");
-      formData.append("bit_rate", "500k");
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
@@ -439,7 +435,17 @@ const DollyZoomCamera = () => {
       }
 
       const data = await response.json();
-      return data.secure_url;
+
+      // 원본 URL에 회전 변환 파라미터 추가
+      // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
+      const originalUrl = data.secure_url;
+      const transformedUrl = originalUrl.replace(
+        "/upload/",
+        "/upload/a_-90,q_auto:low/"
+      );
+
+      addDebugLog(`변환된 URL: ${transformedUrl}`);
+      return transformedUrl;
     } catch (error) {
       addDebugLog(`Cloudinary 업로드 오류: ${error}`);
       throw error;
