@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd peer-app && npm install && npm run build",
+  "outputDirectory": "peer-app/.next",
+  "devCommand": "cd peer-app && npm run dev",
+  "installCommand": "cd peer-app && npm install"
+}
