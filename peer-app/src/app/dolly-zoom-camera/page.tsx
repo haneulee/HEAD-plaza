@@ -495,9 +495,9 @@ const PeerPage = () => {
       <button
         onClick={isStreaming ? handleCut : handleCall}
         disabled={isProcessing}
-        className="absolute bottom-8 left-1/2 transform -translate-x-1/2 rotate-90 bg-black text-white px-8 py-3 rounded-lg font-bold mb-8"
+        className="absolute top-1/2 transform -translate-y-1/2 rotate-90 bg-black text-white px-6 py-4 rounded-xl font-bold text-xl"
       >
-        {isStreaming ? "Cut!" : "Action!"}
+        {isStreaming ? "Cut! 🎬" : "Action! 🎬"}
       </button>
 
       {/* 중앙 로딩 인디케이터 */}
@@ -510,6 +510,7 @@ const PeerPage = () => {
               width={100}
               height={24}
               priority
+              className="rotate-90"
             />
           </div>
         </div>

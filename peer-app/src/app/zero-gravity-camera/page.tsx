@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import Image from "next/image";
 import Peer from "peerjs";
 
 const PEER_ID = "zero-gravity-camera";
@@ -21,6 +22,16 @@ const PeerPage = () => {
     useState<string>("연결 중...");
   const [isStreaming, setIsStreaming] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // 로그를 화면에 표시하기 위한 함수
+  const addDebugLog = (message: string) => {
+    setDebugLogs((prev) => [
+      ...prev.slice(-9),
+      `${new Date().toLocaleTimeString()}: ${message}`,
+    ]);
+  };
 
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
@@ -173,120 +184,208 @@ const PeerPage = () => {
 
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp9",
-    });
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
+    // 지원하는 MIME 타입 확인
+    const mimeTypes = [
+      "video/webm;codecs=vp8", // vp8이 일반적으로 더 작은 파일 크기
+      "video/webm",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+    ];
+
+    let mimeType = "";
+    for (const type of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        addDebugLog(`지원하는 MIME 타입: ${type}`);
+        break;
       }
-    };
+    }
 
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
+    if (!mimeType) {
+      addDebugLog("지원하는 비디오 MIME 타입을 찾을 수 없습니다.");
+      return;
+    }
+
+    try {
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: 1000000, // 1 Mbps로 제한
+      });
+
+      // 5초마다 데이터 청크 생성
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+          addDebugLog(
+            `녹화 청크 크기: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`
+          );
+        }
+      };
+
+      mediaRecorder.start(5000); // 5초마다 청크 생성
+      mediaRecorderRef.current = mediaRecorder;
+      addDebugLog("녹화가 시작되었습니다. (비트레이트: 1Mbps)");
+    } catch (err) {
+      addDebugLog(`MediaRecorder 생성 실패: ${err}`);
+    }
   };
 
   const stopRecordingAndSave = async () => {
     return new Promise<string>((resolve, reject) => {
       if (!mediaRecorderRef.current) {
-        reject(new Error("No media recorder found"));
+        reject(new Error("MediaRecorder를 찾을 수 없습니다."));
         return;
       }
 
+      addDebugLog("녹화 중지 중...");
       mediaRecorderRef.current.onstop = async () => {
         try {
+          addDebugLog("녹화 중지됨, Blob 생성 중...");
           const blob = new Blob(recordedChunksRef.current, {
-            type: "video/webm",
+            type: mediaRecorderRef.current?.mimeType || "video/webm",
           });
+          const sizeMB = blob.size / 1024 / 1024;
+          addDebugLog(`Blob 생성됨 (크기: ${sizeMB.toFixed(2)}MB)`);
 
-          // FormData 생성
+          if (sizeMB > 40) {
+            throw new Error(
+              `파일 크기가 너무 큽니다 (${sizeMB.toFixed(
+                2
+              )}MB). 40MB 이하여야 합니다.`
+            );
+          }
+
           const formData = new FormData();
           formData.append("video", blob, "recorded-video.webm");
 
-          // 서버에 영상 업로드
+          addDebugLog("서버에 영상 업로드 중...");
           const response = await fetch("/api/upload-video", {
             method: "POST",
             body: formData,
           });
 
           if (!response.ok) {
-            throw new Error("Failed to upload video");
+            const errorText = await response.text();
+            throw new Error(`업로드 실패 (${response.status}): ${errorText}`);
           }
 
           const { videoUrl } = await response.json();
           setRecordedVideoUrl(videoUrl);
+          addDebugLog("업로드 완료, URL 수신됨");
           resolve(videoUrl);
         } catch (error) {
+          addDebugLog(`저장 중 오류 발생: ${error}`);
           reject(error);
         }
       };
 
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (error) {
+        addDebugLog(`MediaRecorder.stop() 호출 중 오류: ${error}`);
+        reject(error);
+      }
     });
   };
 
   const handleCall = () => {
+    addDebugLog("handleCall 시작");
+
     if (!peerInstance) {
+      addDebugLog("peerInstance가 없음");
       setCallStatus(
         "PeerJS 인스턴스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
       );
       return;
     }
+
+    setCallStatus("미디어 스트림 요청 중...");
+
     safeGetUserMedia()
       .then((stream) => {
-        console.log("미디어 스트림 획득 성공, 통화 시도 중...", PEER_VIEWER_ID);
+        addDebugLog("미디어 스트림 획득 성공");
+
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = stream;
+          addDebugLog("비디오 요소에 스트림 연결됨");
+        }
+
         const call = peerInstance.call(PEER_VIEWER_ID, stream);
+        addDebugLog("피어 호출 시도: " + PEER_VIEWER_ID);
 
         if (!call) {
+          addDebugLog("통화 연결 실패");
           setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
           return;
         }
 
         setIsStreaming(true);
-        startRecording(stream); // 녹화 시작
+        setCallStatus("스트리밍 시작됨");
+        addDebugLog("스트리밍 상태 true로 설정");
+
+        startRecording(stream);
+        addDebugLog("녹화 시작됨");
 
         call.on("stream", (userVideoStream) => {
-          console.log("상대방 스트림 수신 성공");
+          addDebugLog("상대방 스트림 수신 성공");
+          setCallStatus("상대방 스트림 연결됨");
         });
 
         call.on("error", (err) => {
-          console.error("통화 중 오류 발생:", err);
+          addDebugLog(`통화 오류: ${err.toString()}`);
           setCallStatus(`통화 오류: ${err.toString()}`);
-          setIsStreaming(false); // 에러 발생 시 스트리밍 상태 해제
+          setIsStreaming(false);
         });
 
         call.on("close", () => {
+          addDebugLog("통화 종료됨");
           setCallStatus("통화가 종료되었습니다.");
-          setIsStreaming(false); // 통화 종료 시 스트리밍 상태 해제
+          setIsStreaming(false);
         });
       })
       .catch((err) => {
-        console.error("Call failed:", err);
+        addDebugLog(`통화 실패: ${err.toString()}`);
         setCallStatus(`통화 실패: ${err.toString()}`);
-        setIsStreaming(false); // 실패 시 스트리밍 상태 해제
+        setIsStreaming(false);
       });
   };
 
   const handleCut = async () => {
     try {
-      const videoUrl = await stopRecordingAndSave();
+      addDebugLog("녹화 종료 시도 중...");
+      setIsProcessing(true); // 처리 시작
 
-      // dolly-zoom 피어에게 녹화된 영상 URL 전달
+      if (!mediaRecorderRef.current) {
+        addDebugLog("MediaRecorder가 없습니다.");
+        setCallStatus("MediaRecorder가 초기화되지 않았습니다.");
+        return;
+      }
+
+      const videoUrl = await stopRecordingAndSave();
+      addDebugLog("녹화 파일 저장 완료: " + videoUrl);
+
       if (peerInstance) {
+        addDebugLog("녹화 영상 URL 전송 시도");
         const conn = peerInstance.connect(PEER_VIEWER_ID);
         conn.on("open", () => {
           conn.send({
             type: "recorded-video",
             url: videoUrl,
           });
+          addDebugLog("녹화 영상 URL 전송 완료");
         });
       }
 
       setIsStreaming(false);
+      addDebugLog("스트리밍 종료");
     } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setCallStatus("녹화 종료 중 오류가 발생했습니다.");
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      addDebugLog(`녹화 종료 오류: ${errorMessage}`);
+      setCallStatus(`녹화 종료 중 오류: ${errorMessage}`);
+    } finally {
+      setIsProcessing(false); // 처리 완료
     }
   };
 
@@ -395,10 +494,45 @@ const PeerPage = () => {
       />
       <button
         onClick={isStreaming ? handleCut : handleCall}
-        className="absolute bottom-8 left-1/2 transform -translate-x-1/2 rotate-90 bg-black text-white px-8 py-3 rounded-lg font-bold mb-8"
+        disabled={isProcessing}
+        className="absolute top-1/2 transform -translate-y-1/2 rotate-90 bg-black text-white px-6 py-4 rounded-xl font-bold text-xl"
       >
-        {isStreaming ? "Cut!" : "Action!"}
+        {isStreaming ? "Cut! 🎬" : "Action! 🎬"}
       </button>
+
+      {/* 중앙 로딩 인디케이터 */}
+      {isProcessing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="flex flex-col items-center gap-4">
+            <Image
+              src="/loading.svg"
+              alt="uploading..."
+              width={100}
+              height={24}
+              priority
+              className="rotate-90"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 디버깅 정보와 로그를 함께 표시 */}
+      <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
+        <div>연결 상태: {connectionStatus}</div>
+        <div>통화 상태: {callStatus}</div>
+        <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
+        <div className="h-px bg-white my-2" />
+        <div className="text-xs">
+          {debugLogs.map((log, index) => (
+            <div
+              key={index}
+              className="whitespace-nowrap overflow-hidden text-ellipsis"
+            >
+              {log}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
