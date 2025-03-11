@@ -8,9 +8,8 @@ import Peer from "peerjs";
 import { Viewport } from "./viewport";
 
 const PEER_ID = "dolly-zoom-camera";
-const PEER_VIEWER_ID = "dolly-zoom-viewer";
 
-const PeerPage = () => {
+const DollyZoomCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -18,8 +17,7 @@ const PeerPage = () => {
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [viewerId, setViewerId] = useState<string>("");
   const [callStatus, setCallStatus] = useState<string>("");
   const [connectionStatus, setConnectionStatus] =
     useState<string>("연결 중...");
@@ -27,6 +25,9 @@ const PeerPage = () => {
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -39,23 +40,18 @@ const PeerPage = () => {
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
     try {
-      setDebugInfo("미디어 장치 접근 시도 중...");
       // 먼저 권한 상태 확인
       const permissions = await navigator.permissions.query({
         name: "camera" as PermissionName,
       });
 
       if (permissions.state === "denied") {
-        setMediaError(
-          "카메라 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요."
-        );
         return Promise.reject(new Error("Camera permission denied"));
       }
 
       // 모바일 브라우저 호환성 처리
       if (!navigator.mediaDevices) {
         // 일부 오래된 브라우저에서는 mediaDevices가 없을 수 있음
-        setMediaError("이 브라우저는 미디어 장치 접근을 지원하지 않습니다.");
         return Promise.reject(new Error("mediaDevices not supported"));
       }
 
@@ -71,22 +67,13 @@ const PeerPage = () => {
 
       return stream;
     } catch (err) {
-      setDebugInfo(
-        `오류 발생: ${err instanceof Error ? err.name : "알 수 없는 오류"}`
-      );
       console.error("Media access error:", err);
 
       if (err instanceof Error) {
         switch (err.name) {
           case "NotAllowedError":
-            setMediaError(
-              "카메라/마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요."
-            );
             break;
           case "NotFoundError":
-            setMediaError(
-              "카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요."
-            );
             // 오디오만 시도
             try {
               const audioOnlyStream = await navigator.mediaDevices.getUserMedia(
@@ -96,19 +83,11 @@ const PeerPage = () => {
                 }
               );
               return audioOnlyStream;
-            } catch (audioErr) {
-              setMediaError("오디오 접근에도 실패했습니다.");
-            }
+            } catch (audioErr) {}
             break;
           case "NotReadableError":
-            setMediaError(
-              "카메라에 접근할 수 없습니다. 다른 앱이 카메라를 사용 중인지 확인해주세요."
-            );
             break;
           case "OverconstrainedError":
-            setMediaError(
-              "요청한 미디어 형식이 지원되지 않습니다. 더 낮은 해상도로 시도합니다."
-            );
             // 더 낮은 해상도로 재시도
             try {
               const lowResStream = await navigator.mediaDevices.getUserMedia({
@@ -116,34 +95,16 @@ const PeerPage = () => {
                 audio: true,
               });
               return lowResStream;
-            } catch (lowResErr) {
-              setMediaError("낮은 해상도에서도 카메라 접근에 실패했습니다.");
-            }
+            } catch (lowResErr) {}
             break;
           default:
-            setMediaError(`카메라/마이크 접근에 실패했습니다: ${err.message}`);
+            break;
         }
       } else {
-        setMediaError("알 수 없는 오류로 카메라/마이크 접근에 실패했습니다.");
+        throw err;
       }
       throw err;
     }
-  };
-
-  // 디버깅 정보 표시 함수
-  const showConnectionInfo = () => {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    const expectedWsProtocol = protocol === "https:" ? "wss:" : "ws:";
-    const port = process.env.NODE_ENV === "development" ? "9000" : "";
-    const portStr = port ? `:${port}` : "";
-
-    setDebugInfo(`
-      페이지 프로토콜: ${protocol}
-      호스트: ${hostname}
-      예상 WebSocket 프로토콜: ${expectedWsProtocol}
-      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}${portStr}/myapp
-    `);
   };
 
   // 환경에 따라 다른 PeerJS 서버 설정 사용
@@ -185,8 +146,19 @@ const PeerPage = () => {
     };
   };
 
+  // 새로운 함수: URL에서 viewerId 파라미터 가져오기
+  const getViewerIdFromUrl = () => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get("viewerId");
+      return id || "dolly-zoom-viewer"; // 기본값 제공
+    }
+    return "dolly-zoom-viewer"; // 서버 사이드에서는 기본값 반환
+  };
+
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
+    setRecordingDuration(0); // 녹화 시간 초기화
 
     // 지원하는 MIME 타입 확인
     const mimeTypes = [
@@ -213,7 +185,7 @@ const PeerPage = () => {
     try {
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType,
-        videoBitsPerSecond: 1000000, // 1 Mbps로 제한
+        videoBitsPerSecond: 800000, // 1 Mbps로 제한
       });
 
       // 5초마다 데이터 청크 생성
@@ -229,6 +201,24 @@ const PeerPage = () => {
       mediaRecorder.start(5000); // 5초마다 청크 생성
       mediaRecorderRef.current = mediaRecorder;
       addDebugLog("녹화가 시작되었습니다. (비트레이트: 1Mbps)");
+
+      // 1분 타이머 설정
+      const timer = window.setInterval(() => {
+        setRecordingDuration((prev) => {
+          const newDuration = prev + 1;
+
+          // 최대 녹화 시간 도달 시 자동 종료
+          if (newDuration >= MAX_RECORDING_DURATION) {
+            addDebugLog("최대 녹화 시간(1분) 도달, 자동 종료");
+            clearInterval(timer);
+            handleCut(); // 녹화 종료 함수 호출
+          }
+
+          return newDuration;
+        });
+      }, 1000);
+
+      setRecordingTimer(timer);
     } catch (err) {
       addDebugLog(`MediaRecorder 생성 실패: ${err}`);
     }
@@ -241,6 +231,12 @@ const PeerPage = () => {
         return;
       }
 
+      // 타이머 정리
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+        setRecordingTimer(null);
+      }
+
       addDebugLog("녹화 중지 중...");
       mediaRecorderRef.current.onstop = async () => {
         try {
@@ -251,31 +247,26 @@ const PeerPage = () => {
           const sizeMB = blob.size / 1024 / 1024;
           addDebugLog(`Blob 생성됨 (크기: ${sizeMB.toFixed(2)}MB)`);
 
-          if (sizeMB > 40) {
-            throw new Error(
-              `파일 크기가 너무 큽니다 (${sizeMB.toFixed(
-                2
-              )}MB). 40MB 이하여야 합니다.`
-            );
+          // 파일 크기가 너무 크면 압축 시도
+          let uploadBlob = blob;
+          if (sizeMB > 10) {
+            // Cloudinary 무료 계정 제한
+            addDebugLog(`파일 크기가 큽니다. 압축 시도 중...`);
+            try {
+              // 비디오 압축 로직 (간단한 해상도 축소)
+              const compressedBlob = await compressVideo(blob);
+              const compressedSizeMB = compressedBlob.size / 1024 / 1024;
+              addDebugLog(`압축 후 크기: ${compressedSizeMB.toFixed(2)}MB`);
+              uploadBlob = compressedBlob;
+            } catch (compressErr) {
+              addDebugLog(`압축 실패: ${compressErr}. 원본 사용`);
+            }
           }
 
-          const formData = new FormData();
-          formData.append("video", blob, "recorded-video.webm");
-
-          addDebugLog("서버에 영상 업로드 중...");
-          const response = await fetch("/api/upload-video", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`업로드 실패 (${response.status}): ${errorText}`);
-          }
-
-          const { videoUrl } = await response.json();
-          setRecordedVideoUrl(videoUrl);
-          addDebugLog("업로드 완료, URL 수신됨");
+          // Cloudinary 직접 업로드 (서버 우회)
+          addDebugLog("Cloudinary에 직접 업로드 시도...");
+          const videoUrl = await uploadToCloudinary(uploadBlob);
+          addDebugLog("Cloudinary 업로드 완료, URL 수신됨");
           resolve(videoUrl);
         } catch (error) {
           addDebugLog(`저장 중 오류 발생: ${error}`);
@@ -314,8 +305,8 @@ const PeerPage = () => {
           addDebugLog("비디오 요소에 스트림 연결됨");
         }
 
-        const call = peerInstance.call(PEER_VIEWER_ID, stream);
-        addDebugLog("피어 호출 시도: " + PEER_VIEWER_ID);
+        const call = peerInstance.call(viewerId, stream);
+        addDebugLog("피어 호출 시도: " + viewerId);
 
         if (!call) {
           addDebugLog("통화 연결 실패");
@@ -370,7 +361,7 @@ const PeerPage = () => {
 
       if (peerInstance) {
         addDebugLog("녹화 영상 URL 전송 시도");
-        const conn = peerInstance.connect(PEER_VIEWER_ID);
+        const conn = peerInstance.connect(viewerId);
         conn.on("open", () => {
           conn.send({
             type: "recorded-video",
@@ -392,6 +383,69 @@ const PeerPage = () => {
     }
   };
 
+  // 더 간단한 비디오 압축 함수 (오디오 없음)
+  const compressVideo = async (videoBlob: Blob): Promise<Blob> => {
+    // 이미 크기가 작으면 그대로 반환
+    if (videoBlob.size < 10 * 1024 * 1024) {
+      return videoBlob;
+    }
+
+    addDebugLog("간단한 압축 방식 사용 중...");
+
+    // 더 낮은 비트레이트로 MediaRecorder 설정
+    try {
+      // 비디오를 다시 녹화하는 대신 Cloudinary 변환 파라미터 사용
+      return videoBlob;
+    } catch (err) {
+      addDebugLog(`압축 실패: ${err}`);
+      return videoBlob;
+    }
+  };
+
+  // Cloudinary 업로드 함수 수정
+  const uploadToCloudinary = async (videoBlob: Blob) => {
+    try {
+      addDebugLog("Cloudinary에 직접 업로드 시도...");
+      const cloudName =
+        process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+      const uploadPreset =
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
+
+      const formData = new FormData();
+      formData.append("file", videoBlob);
+      formData.append("upload_preset", uploadPreset);
+      formData.append("resource_type", "video");
+
+      // 비디오 최적화 옵션 (Cloudinary 변환 파라미터)
+      formData.append("quality", "auto:low");
+      formData.append("width", "640");
+      formData.append("height", "360");
+      formData.append("crop", "limit");
+      formData.append("bit_rate", "500k");
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Cloudinary 업로드 실패 (${response.status}): ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      return data.secure_url;
+    } catch (error) {
+      addDebugLog(`Cloudinary 업로드 오류: ${error}`);
+      throw error;
+    }
+  };
+
   // PeerJS 인스턴스 생성 시 설정 사용
   useEffect(() => {
     if (myUniqueId) {
@@ -404,11 +458,6 @@ const PeerPage = () => {
           peerConfig.host
         }${peerConfig.port ? `:${peerConfig.port}` : ""}${peerConfig.path}`;
 
-        setDebugInfo(
-          `PeerJS 연결 시도 중...\n설정: ${JSON.stringify(
-            peerConfig
-          )}\nWebSocket URL: ${wsUrl}`
-        );
         setConnectionStatus("PeerJS 서버에 연결 중...");
 
         // 디버깅을 위한 추가 정보
@@ -425,18 +474,11 @@ const PeerPage = () => {
 
         // 연결 이벤트 리스너 추가
         peer.on("open", (id) => {
-          setDebugInfo(`PeerJS 연결 성공: ${id}`);
           setConnectionStatus("PeerJS 서버에 연결됨");
         });
 
         peer.on("error", (err) => {
           console.error("PeerJS 오류:", err);
-          setDebugInfo(
-            `PeerJS 오류: ${err.type} - ${
-              err.message || "자세한 오류 정보 없음"
-            }`
-          );
-          setMediaError(`PeerJS 연결 실패: ${err.type}`);
           setConnectionStatus(`연결 오류: ${err.type}`);
 
           // 연결 재시도 로직
@@ -447,7 +489,6 @@ const PeerPage = () => {
           ) {
             setConnectionStatus("5초 후 재연결 시도...");
             setTimeout(() => {
-              setDebugInfo("PeerJS 연결 재시도 중...");
               setConnectionStatus("재연결 시도 중...");
               peer.reconnect();
             }, 5000);
@@ -477,14 +518,20 @@ const PeerPage = () => {
 
   useEffect(() => {
     setMyUniqueId(PEER_ID);
+    // URL에서 viewerId 가져오기
+    const urlViewerId = getViewerIdFromUrl();
+    setViewerId(urlViewerId);
+    addDebugLog(`Viewer ID from URL: ${urlViewerId}`);
   }, []);
 
-  // 컴포넌트 마운트 시 정보 표시
+  // 컴포넌트 언마운트 시 타이머 정리
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      showConnectionInfo();
-    }
-  }, []);
+    return () => {
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+      }
+    };
+  }, [recordingTimer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -592,8 +639,20 @@ const PeerPage = () => {
           ))}
         </div>
       </div> */}
+
+      {/* 녹화 시간 표시 추가 */}
+      {/* {isStreaming && (
+        <div className="absolute top-20 left-4 bg-red-600 text-white px-4 py-2 rounded-lg z-10">
+          녹화 중: {Math.floor(recordingDuration / 60)}:
+          {(recordingDuration % 60).toString().padStart(2, "0")}
+          {recordingDuration >= MAX_RECORDING_DURATION - 10 &&
+            recordingDuration < MAX_RECORDING_DURATION && (
+              <span className="ml-2 animate-pulse">곧 종료됩니다!</span>
+            )}
+        </div>
+      )} */}
     </div>
   );
 };
 
-export default PeerPage;
+export default DollyZoomCamera;

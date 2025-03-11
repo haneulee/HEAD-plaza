@@ -6,43 +6,45 @@ import { InfoPopup } from "@/components/InfoPopup";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
 
-const PEER_VIEWER_ID = "zero-gravity-viewer";
-
-const PeerPage = () => {
+const ZeroGravityShot = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const callingVideoRef = useRef<HTMLVideoElement>(null);
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
-  const [mediaError, setMediaError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>("");
-  const [connectionStatus, setConnectionStatus] =
-    useState<string>("Connecting...");
-  const [callStatus, setCallStatus] = useState<string>("");
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
 
+  // 고정 ID 대신 랜덤 ID 생성 함수 추가
+  const generateUniqueId = () => {
+    return `${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  // URL에 ID 파라미터 추가하는 함수
+  const updateUrlWithId = (id: string) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("id", id);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
     try {
-      setDebugInfo("Attempting to access media devices...");
       // 먼저 권한 상태 확인
       const permissions = await navigator.permissions.query({
         name: "camera" as PermissionName,
       });
 
       if (permissions.state === "denied") {
-        setMediaError(
-          "Camera access denied. Please enable camera permissions in your browser settings."
-        );
         return Promise.reject(new Error("Camera permission denied"));
       }
 
       // 모바일 브라우저 호환성 처리
       if (!navigator.mediaDevices) {
         // 일부 오래된 브라우저에서는 mediaDevices가 없을 수 있음
-        setMediaError("This browser does not support media device access.");
         return Promise.reject(new Error("mediaDevices not supported"));
       }
 
@@ -58,22 +60,13 @@ const PeerPage = () => {
 
       return stream;
     } catch (err) {
-      setDebugInfo(
-        `Error occurred: ${err instanceof Error ? err.name : "Unknown error"}`
-      );
       console.error("Media access error:", err);
 
       if (err instanceof Error) {
         switch (err.name) {
           case "NotAllowedError":
-            setMediaError(
-              "Camera/microphone access denied. Please enable permissions in your browser settings."
-            );
             break;
           case "NotFoundError":
-            setMediaError(
-              "Camera not found. Please check if a camera is connected."
-            );
             // 오디오만 시도
             try {
               const audioOnlyStream = await navigator.mediaDevices.getUserMedia(
@@ -83,19 +76,11 @@ const PeerPage = () => {
                 }
               );
               return audioOnlyStream;
-            } catch (audioErr) {
-              setMediaError("Audio access also failed.");
-            }
+            } catch (audioErr) {}
             break;
           case "NotReadableError":
-            setMediaError(
-              "Cannot access camera. Please check if another app is using the camera."
-            );
             break;
           case "OverconstrainedError":
-            setMediaError(
-              "Requested media format not supported. Trying with lower resolution."
-            );
             // 더 낮은 해상도로 재시도
             try {
               const lowResStream = await navigator.mediaDevices.getUserMedia({
@@ -103,36 +88,14 @@ const PeerPage = () => {
                 audio: true,
               });
               return lowResStream;
-            } catch (lowResErr) {
-              setMediaError("Camera access failed even with lower resolution.");
-            }
+            } catch (lowResErr) {}
             break;
           default:
-            setMediaError(`Failed to access camera/microphone: ${err.message}`);
+            break;
         }
-      } else {
-        setMediaError(
-          "Failed to access camera/microphone due to unknown error."
-        );
       }
       throw err;
     }
-  };
-
-  // 디버깅 정보 표시 함수
-  const showConnectionInfo = () => {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    const expectedWsProtocol = protocol === "https:" ? "wss:" : "ws:";
-    const port = process.env.NODE_ENV === "development" ? "9000" : "";
-    const portStr = port ? `:${port}` : "";
-
-    setDebugInfo(`
-      페이지 프로토콜: ${protocol}
-      호스트: ${hostname}
-      예상 WebSocket 프로토콜: ${expectedWsProtocol}
-      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}${portStr}/myapp
-    `);
   };
 
   // 환경에 따라 다른 PeerJS 서버 설정 사용
@@ -186,13 +149,6 @@ const PeerPage = () => {
           peerConfig.host
         }${peerConfig.port ? `:${peerConfig.port}` : ""}${peerConfig.path}`;
 
-        setDebugInfo(
-          `PeerJS 연결 시도 중...\n설정: ${JSON.stringify(
-            peerConfig
-          )}\nWebSocket URL: ${wsUrl}`
-        );
-        setConnectionStatus("PeerJS 서버에 연결 중...");
-
         // 디버깅을 위한 추가 정보
         console.log("PeerJS 설정:", peerConfig);
         console.log("현재 URL:", window.location.href);
@@ -207,19 +163,11 @@ const PeerPage = () => {
 
         // 연결 이벤트 리스너 추가
         peer.on("open", (id) => {
-          setDebugInfo(`PeerJS 연결 성공: ${id}`);
-          setConnectionStatus("PeerJS 서버에 연결됨");
+          //
         });
 
         peer.on("error", (err) => {
           console.error("PeerJS 오류:", err);
-          setDebugInfo(
-            `PeerJS 오류: ${err.type} - ${
-              err.message || "자세한 오류 정보 없음"
-            }`
-          );
-          setMediaError(`PeerJS 연결 실패: ${err.type}`);
-          setConnectionStatus(`연결 오류: ${err.type}`);
 
           // 연결 재시도 로직
           if (
@@ -227,10 +175,7 @@ const PeerPage = () => {
             err.type === "server-error" ||
             err.type === "socket-error"
           ) {
-            setConnectionStatus("5초 후 재연결 시도...");
             setTimeout(() => {
-              setDebugInfo("PeerJS 연결 재시도 중...");
-              setConnectionStatus("재연결 시도 중...");
               peer.reconnect();
             }, 5000);
           }
@@ -246,7 +191,6 @@ const PeerPage = () => {
 
             peer.on("call", (call) => {
               console.log("Incoming call received.");
-              setCallStatus("Incoming call received.");
               setIsStreaming(true); // 스트리밍 시작
 
               call.answer(stream);
@@ -254,14 +198,12 @@ const PeerPage = () => {
                 console.log("Remote stream received successfully");
                 if (callingVideoRef.current) {
                   callingVideoRef.current.srcObject = userVideoStream;
-                  setCallStatus("Call connected");
                 }
               });
 
               // call이 끊어질 때 처리
               call.on("close", () => {
                 console.log("Call ended.");
-                setCallStatus("Call ended");
                 setIsStreaming(false);
                 if (callingVideoRef.current) {
                   callingVideoRef.current.srcObject = null;
@@ -271,7 +213,6 @@ const PeerPage = () => {
           })
           .catch((err) => {
             console.error("Initial media setup failed:", err);
-            setConnectionStatus("Media setup failed");
           });
       }
       return () => {
@@ -283,14 +224,11 @@ const PeerPage = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId(PEER_VIEWER_ID);
-  }, []);
-
-  // 컴포넌트 마운트 시 정보 표시
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      showConnectionInfo();
-    }
+    // 고정 ID 대신 랜덤 ID 사용
+    const newId = generateUniqueId();
+    setMyUniqueId(newId);
+    // URL에 ID 추가
+    updateUrlWithId(newId);
   }, []);
 
   useEffect(() => {
@@ -329,6 +267,35 @@ const PeerPage = () => {
           and action films, can create a disorienting yet captivating effect
           that simulates the absence of gravity.
         </p>
+
+        {/* 카메라 앱 링크 추가 */}
+        {/* {myUniqueId && (
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Camera App Link:</h3>
+            <div className="flex items-center space-x-4">
+              <input
+                type="text"
+                readOnly
+                value={`${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`}
+                className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`
+                  );
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-gray-400 mt-2 text-sm">
+              Share this link with the camera operator to connect to this
+              viewer.
+            </p>
+          </div>
+        )} */}
       </div>
 
       {/* Videos section */}
@@ -416,4 +383,4 @@ const PeerPage = () => {
   );
 };
 
-export default PeerPage;
+export default ZeroGravityShot;
