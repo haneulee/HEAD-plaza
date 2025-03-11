@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
+import fs from "fs/promises";
+import path from "path";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -14,6 +16,47 @@ type CloudinaryResponse = {
   secure_url: string;
 };
 
+const saveLocally = async (video: Blob): Promise<string> => {
+  const uploadDir = path.join(process.cwd(), "public", "uploads");
+  await fs.mkdir(uploadDir, { recursive: true });
+
+  const fileName = `video-${Date.now()}.webm`;
+  const filePath = path.join(uploadDir, fileName);
+
+  const arrayBuffer = await video.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  await fs.writeFile(filePath, uint8Array);
+
+  return `/uploads/${fileName}`;
+};
+
+const saveToCloudinary = async (video: Blob): Promise<string> => {
+  const arrayBuffer = await video.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const result = await new Promise<CloudinaryResponse>((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "video",
+        folder: "videos",
+        transformation: [{ quality: "auto" }, { fetch_format: "auto" }],
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result as CloudinaryResponse);
+      }
+    );
+
+    const Readable = require("stream").Readable;
+    const stream = new Readable();
+    stream.push(buffer);
+    stream.push(null);
+    stream.pipe(uploadStream);
+  });
+
+  return result.secure_url;
+};
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -26,38 +69,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Blob을 Buffer로 변환
-    const arrayBuffer = await video.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const videoUrl =
+      process.env.NODE_ENV === "development"
+        ? await saveLocally(video)
+        : await saveToCloudinary(video);
 
-    // Cloudinary에 업로드
-    const result = await new Promise<CloudinaryResponse>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: "video",
-          folder: "videos",
-          transformation: [
-            { quality: "auto" }, // 자동 품질 최적화
-            { fetch_format: "auto" }, // 최적의 포맷 선택
-          ],
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result as CloudinaryResponse);
-        }
-      );
-
-      // Buffer를 스트림으로 변환하여 업로드
-      const Readable = require("stream").Readable;
-      const stream = new Readable();
-      stream.push(buffer);
-      stream.push(null);
-      stream.pipe(uploadStream);
-    });
-
-    return NextResponse.json({
-      videoUrl: result.secure_url,
-    });
+    return NextResponse.json({ videoUrl });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json(

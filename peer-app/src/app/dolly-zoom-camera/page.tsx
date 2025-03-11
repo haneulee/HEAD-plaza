@@ -22,6 +22,7 @@ const PeerPage = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -352,6 +353,7 @@ const PeerPage = () => {
   const handleCut = async () => {
     try {
       addDebugLog("녹화 종료 시도 중...");
+      setIsProcessing(true); // 처리 시작
 
       if (!mediaRecorderRef.current) {
         addDebugLog("MediaRecorder가 없습니다.");
@@ -362,7 +364,6 @@ const PeerPage = () => {
       const videoUrl = await stopRecordingAndSave();
       addDebugLog("녹화 파일 저장 완료: " + videoUrl);
 
-      // dolly-zoom 피어에게 녹화된 영상 URL 전달
       if (peerInstance) {
         addDebugLog("녹화 영상 URL 전송 시도");
         const conn = peerInstance.connect(PEER_VIEWER_ID);
@@ -382,6 +383,8 @@ const PeerPage = () => {
         error instanceof Error ? error.message : String(error);
       addDebugLog(`녹화 종료 오류: ${errorMessage}`);
       setCallStatus(`녹화 종료 중 오류: ${errorMessage}`);
+    } finally {
+      setIsProcessing(false); // 처리 완료
     }
   };
 
@@ -490,10 +493,42 @@ const PeerPage = () => {
       />
       <button
         onClick={isStreaming ? handleCut : handleCall}
+        disabled={isProcessing}
         className="absolute bottom-8 left-1/2 transform -translate-x-1/2 rotate-90 bg-black text-white px-8 py-3 rounded-lg font-bold mb-8"
       >
         {isStreaming ? "Cut!" : "Action!"}
       </button>
+
+      {/* 중앙 로딩 인디케이터 */}
+      {isProcessing && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              className="animate-spin h-12 w-12 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="text-white text-lg font-semibold">
+              Processing...
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* 디버깅 정보와 로그를 함께 표시 */}
       <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
