@@ -227,39 +227,49 @@ const PeerPage = () => {
   const stopRecordingAndSave = async () => {
     return new Promise<string>((resolve, reject) => {
       if (!mediaRecorderRef.current) {
-        reject(new Error("No media recorder found"));
+        reject(new Error("MediaRecorder를 찾을 수 없습니다."));
         return;
       }
 
+      addDebugLog("녹화 중지 중...");
       mediaRecorderRef.current.onstop = async () => {
         try {
+          addDebugLog("녹화 중지됨, Blob 생성 중...");
           const blob = new Blob(recordedChunksRef.current, {
-            type: "video/webm",
+            type: mediaRecorderRef.current?.mimeType || "video/webm",
           });
+          addDebugLog(`Blob 생성됨 (크기: ${blob.size} bytes)`);
 
-          // FormData 생성
           const formData = new FormData();
           formData.append("video", blob, "recorded-video.webm");
 
-          // 서버에 영상 업로드
+          addDebugLog("서버에 영상 업로드 중...");
           const response = await fetch("/api/upload-video", {
             method: "POST",
             body: formData,
           });
 
           if (!response.ok) {
-            throw new Error("Failed to upload video");
+            const errorText = await response.text();
+            throw new Error(`업로드 실패 (${response.status}): ${errorText}`);
           }
 
           const { videoUrl } = await response.json();
           setRecordedVideoUrl(videoUrl);
+          addDebugLog("업로드 완료, URL 수신됨");
           resolve(videoUrl);
         } catch (error) {
+          addDebugLog(`저장 중 오류 발생: ${error}`);
           reject(error);
         }
       };
 
-      mediaRecorderRef.current.stop();
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (error) {
+        addDebugLog(`MediaRecorder.stop() 호출 중 오류: ${error}`);
+        reject(error);
+      }
     });
   };
 
@@ -327,23 +337,37 @@ const PeerPage = () => {
 
   const handleCut = async () => {
     try {
+      addDebugLog("녹화 종료 시도 중...");
+
+      if (!mediaRecorderRef.current) {
+        addDebugLog("MediaRecorder가 없습니다.");
+        setCallStatus("MediaRecorder가 초기화되지 않았습니다.");
+        return;
+      }
+
       const videoUrl = await stopRecordingAndSave();
+      addDebugLog("녹화 파일 저장 완료: " + videoUrl);
 
       // dolly-zoom 피어에게 녹화된 영상 URL 전달
       if (peerInstance) {
+        addDebugLog("녹화 영상 URL 전송 시도");
         const conn = peerInstance.connect(PEER_VIEWER_ID);
         conn.on("open", () => {
           conn.send({
             type: "recorded-video",
             url: videoUrl,
           });
+          addDebugLog("녹화 영상 URL 전송 완료");
         });
       }
 
       setIsStreaming(false);
+      addDebugLog("스트리밍 종료");
     } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setCallStatus("녹화 종료 중 오류가 발생했습니다.");
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      addDebugLog(`녹화 종료 오류: ${errorMessage}`);
+      setCallStatus(`녹화 종료 중 오류: ${errorMessage}`);
     }
   };
 
