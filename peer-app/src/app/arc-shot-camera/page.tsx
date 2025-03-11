@@ -411,14 +411,10 @@ const ArcShotCamera = () => {
       formData.append("upload_preset", uploadPreset);
       formData.append("resource_type", "video");
 
-      // 비디오 최적화 옵션
+      // 기본 최적화 옵션만 사용
       formData.append("quality", "auto:low");
 
-      // eager 변환 옵션 추가 - 업로드 시점에 변환 적용
-      // 회전(-90도), 해상도 조정, 비트레이트 제한을 포함한 변환
-      formData.append("eager", "a_-90,w_640,h_360,c_limit,q_auto:low,br_500k");
-
-      // eager_async 제거 (unsigned 업로드에서는 사용 불가)
+      // eager 및 angle 파라미터 제거 (unsigned 업로드에서는 사용 불가)
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
@@ -437,12 +433,13 @@ const ArcShotCamera = () => {
 
       const data = await response.json();
 
-      // eager 변환이 적용된 URL 사용
-      // data.eager[0].secure_url이 변환된 비디오의 URL
-      const transformedUrl =
-        data.eager && data.eager[0]
-          ? data.eager[0].secure_url
-          : data.secure_url;
+      // 원본 URL에 회전 변환 파라미터 추가
+      // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
+      const originalUrl = data.secure_url;
+      const transformedUrl = originalUrl.replace(
+        "/upload/",
+        "/upload/a_-90,q_auto:low/"
+      );
 
       addDebugLog(`변환된 URL: ${transformedUrl}`);
 
