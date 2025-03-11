@@ -21,6 +21,15 @@ const PeerPage = () => {
     useState<string>("연결 중...");
   const [isStreaming, setIsStreaming] = useState(false);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+
+  // 로그를 화면에 표시하기 위한 함수
+  const addDebugLog = (message: string) => {
+    setDebugLogs((prev) => [
+      ...prev.slice(-9),
+      `${new Date().toLocaleTimeString()}: ${message}`,
+    ]);
+  };
 
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
@@ -227,44 +236,64 @@ const PeerPage = () => {
   };
 
   const handleCall = () => {
+    addDebugLog("handleCall 시작");
+
     if (!peerInstance) {
+      addDebugLog("peerInstance가 없음");
       setCallStatus(
         "PeerJS 인스턴스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
       );
       return;
     }
+
+    setCallStatus("미디어 스트림 요청 중...");
+
     safeGetUserMedia()
       .then((stream) => {
-        console.log("미디어 스트림 획득 성공, 통화 시도 중...", PEER_VIEWER_ID);
+        addDebugLog("미디어 스트림 획득 성공");
+
+        if (myVideoRef.current) {
+          myVideoRef.current.srcObject = stream;
+          addDebugLog("비디오 요소에 스트림 연결됨");
+        }
+
         const call = peerInstance.call(PEER_VIEWER_ID, stream);
+        addDebugLog("피어 호출 시도: " + PEER_VIEWER_ID);
 
         if (!call) {
+          addDebugLog("통화 연결 실패");
           setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
           return;
         }
 
         setIsStreaming(true);
-        startRecording(stream); // 녹화 시작
+        setCallStatus("스트리밍 시작됨");
+        addDebugLog("스트리밍 상태 true로 설정");
+
+        startRecording(stream);
+        addDebugLog("녹화 시작됨");
 
         call.on("stream", (userVideoStream) => {
-          console.log("상대방 스트림 수신 성공");
+          addDebugLog("상대방 스트림 수신 성공");
+          setCallStatus("상대방 스트림 연결됨");
         });
 
         call.on("error", (err) => {
-          console.error("통화 중 오류 발생:", err);
+          addDebugLog(`통화 오류: ${err.toString()}`);
           setCallStatus(`통화 오류: ${err.toString()}`);
-          setIsStreaming(false); // 에러 발생 시 스트리밍 상태 해제
+          setIsStreaming(false);
         });
 
         call.on("close", () => {
+          addDebugLog("통화 종료됨");
           setCallStatus("통화가 종료되었습니다.");
-          setIsStreaming(false); // 통화 종료 시 스트리밍 상태 해제
+          setIsStreaming(false);
         });
       })
       .catch((err) => {
-        console.error("Call failed:", err);
+        addDebugLog(`통화 실패: ${err.toString()}`);
         setCallStatus(`통화 실패: ${err.toString()}`);
-        setIsStreaming(false); // 실패 시 스트리밍 상태 해제
+        setIsStreaming(false);
       });
   };
 
@@ -399,6 +428,24 @@ const PeerPage = () => {
       >
         {isStreaming ? "Cut!" : "Action!"}
       </button>
+
+      {/* 디버깅 정보와 로그를 함께 표시 */}
+      <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
+        <div>연결 상태: {connectionStatus}</div>
+        <div>통화 상태: {callStatus}</div>
+        <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
+        <div className="h-px bg-white my-2" />
+        <div className="text-xs">
+          {debugLogs.map((log, index) => (
+            <div
+              key={index}
+              className="whitespace-nowrap overflow-hidden text-ellipsis"
+            >
+              {log}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };
