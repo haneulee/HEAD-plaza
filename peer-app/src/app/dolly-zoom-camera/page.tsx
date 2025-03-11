@@ -182,18 +182,46 @@ const PeerPage = () => {
 
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp9",
-    });
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
+    // 지원하는 MIME 타입 확인
+    const mimeTypes = [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+      "video/mp4",
+    ];
+
+    let mimeType = "";
+    for (const type of mimeTypes) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        mimeType = type;
+        addDebugLog(`지원하는 MIME 타입: ${type}`);
+        break;
       }
-    };
+    }
 
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
+    if (!mimeType) {
+      addDebugLog("지원하는 비디오 MIME 타입을 찾을 수 없습니다.");
+      return;
+    }
+
+    try {
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+      });
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.start();
+      mediaRecorderRef.current = mediaRecorder;
+      addDebugLog("녹화가 시작되었습니다.");
+    } catch (err) {
+      addDebugLog(`MediaRecorder 생성 실패: ${err}`);
+    }
   };
 
   const stopRecordingAndSave = async () => {
