@@ -51,11 +51,11 @@ const ArcShotCamera = () => {
         return Promise.reject(new Error("mediaDevices not supported"));
       }
 
-      // 모바일에서는 더 낮은 해상도로 시작하는 것이 좋음
+      // 가로 모드 촬영을 위한 설정 추가
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280 }, // 가로 해상도 증가
+          height: { ideal: 720 }, // 세로 해상도 증가
           facingMode: "environment",
         },
         audio: true,
@@ -418,6 +418,9 @@ const ArcShotCamera = () => {
       formData.append("crop", "limit");
       formData.append("bit_rate", "500k");
 
+      // 비디오 회전 파라미터 추가
+      formData.append("angle", "90"); // 90도 회전
+
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
         {
@@ -531,7 +534,15 @@ const ArcShotCamera = () => {
   return (
     <div className="relative h-screen w-screen">
       <video
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover transform"
+        style={{
+          transform: "rotate(-90deg)", // 비디오를 90도 회전
+          maxWidth: "100vh", // 높이와 너비 교체
+          maxHeight: "100vw",
+          width: "100vh",
+          height: "100vw",
+          objectFit: "cover",
+        }}
         playsInline
         ref={myVideoRef}
         autoPlay
@@ -540,7 +551,7 @@ const ArcShotCamera = () => {
       <button
         onClick={isStreaming ? handleCut : handleCall}
         disabled={isProcessing}
-        className="absolute top-1/2 transform -translate-y-1/2 rotate-90 bg-black text-white px-6 py-4 rounded-xl font-bold text-xl"
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black text-white px-6 py-4 rounded-xl font-bold text-xl"
       >
         {isStreaming ? "Cut! 🎬" : "Action! 🎬"}
       </button>
