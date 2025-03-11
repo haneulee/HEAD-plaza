@@ -174,12 +174,13 @@ const PeerPage = () => {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
     const expectedWsProtocol = protocol === "https:" ? "wss:" : "ws:";
+    const port = process.env.NODE_ENV === "development" ? "9000" : "8080";
 
     setDebugInfo(`
       페이지 프로토콜: ${protocol}
       호스트: ${hostname}
       예상 WebSocket 프로토콜: ${expectedWsProtocol}
-      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}:9000/myapp
+      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}:${port}/myapp
     `);
   };
 
@@ -198,7 +199,7 @@ const PeerPage = () => {
     // 프로덕션 환경
     return {
       host: process.env.NEXT_PUBLIC_API_URL || "localhost", // Vercel 환경변수 사용
-      port: 9000,
+      port: 8080, // 프로덕션 환경에서는 8080 포트 사용
       path: "/myapp",
       secure: true, // Railway가 HTTPS를 사용하는 경우 true로 유지
       config: {
