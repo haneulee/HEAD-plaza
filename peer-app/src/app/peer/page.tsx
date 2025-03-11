@@ -198,9 +198,15 @@ const PeerPage = () => {
     // 프로덕션 환경
     return {
       host: process.env.NEXT_PUBLIC_API_URL || "localhost", // Vercel 환경변수 사용
-      port: 443,
+      port: 9000,
       path: "/myapp",
-      secure: true,
+      secure: true, // Railway가 HTTPS를 사용하는 경우 true로 유지
+      config: {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:global.stun.twilio.com:3478" },
+        ],
+      },
     };
   };
 
@@ -211,6 +217,10 @@ const PeerPage = () => {
       if (typeof window !== "undefined") {
         const peerConfig = getPeerConfig();
 
+        setDebugInfo(
+          `PeerJS 연결 시도 중... 설정: ${JSON.stringify(peerConfig)}`
+        );
+
         peer = new Peer(myUniqueId, peerConfig);
 
         // 연결 이벤트 리스너 추가
@@ -220,8 +230,24 @@ const PeerPage = () => {
 
         peer.on("error", (err) => {
           console.error("PeerJS 오류:", err);
-          setDebugInfo(`PeerJS 오류: ${err.type}`);
+          setDebugInfo(
+            `PeerJS 오류: ${err.type} - ${
+              err.message || "자세한 오류 정보 없음"
+            }`
+          );
           setMediaError(`PeerJS 연결 실패: ${err.type}`);
+
+          // 연결 재시도 로직
+          if (
+            err.type === "network" ||
+            err.type === "server-error" ||
+            err.type === "socket-error"
+          ) {
+            setTimeout(() => {
+              setDebugInfo("PeerJS 연결 재시도 중...");
+              peer.reconnect();
+            }, 5000);
+          }
         });
 
         setPeerInstance(peer);
