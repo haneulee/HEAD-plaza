@@ -198,7 +198,7 @@ const PeerPage = () => {
 
     // 프로덕션 환경
     return {
-      host: "your-deployed-peerjs-server.com", // 배포된 PeerJS 서버 주소
+      host: process.env.NEXT_PUBLIC_API_URL || "localhost", // Vercel 환경변수 사용
       port: 443,
       path: "/myapp",
       secure: true,
