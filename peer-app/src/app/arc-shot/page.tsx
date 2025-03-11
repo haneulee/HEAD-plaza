@@ -342,8 +342,7 @@ const ArcShot = () => {
                   className="rounded-lg"
                   style={{
                     transform: "rotate(-90deg)",
-                    width: "56.25%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
-                    height: "177.78%", // 16:9 비율의 너비를 높이로 사용 (16/9 = 1.7778)
+                    width: "80%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
                     objectFit: "cover",
                   }}
                   playsInline
