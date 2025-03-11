@@ -337,11 +337,13 @@ const ArcShot = () => {
           {isStreaming ? (
             <>
               <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
-              <div className="aspect-video flex-shrink-0 relative">
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
                 <video
-                  className="w-full h-full rounded-lg object-cover"
+                  className="rounded-lg"
                   style={{
-                    transform: "rotate(90deg)", // 비디오를 90도 회전
+                    transform: "rotate(-90deg)",
+                    width: "56.25%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
+                    height: "177.78%", // 16:9 비율의 너비를 높이로 사용 (16/9 = 1.7778)
                     objectFit: "cover",
                   }}
                   playsInline

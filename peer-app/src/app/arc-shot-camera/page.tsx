@@ -411,15 +411,18 @@ const ArcShotCamera = () => {
       formData.append("upload_preset", uploadPreset);
       formData.append("resource_type", "video");
 
-      // 비디오 최적화 옵션 (Cloudinary 변환 파라미터)
+      // 비디오 최적화 옵션
       formData.append("quality", "auto:low");
-      formData.append("width", "640");
-      formData.append("height", "360");
-      formData.append("crop", "limit");
-      formData.append("bit_rate", "500k");
 
-      // 비디오 회전 파라미터 추가
-      formData.append("angle", "90"); // 90도 회전
+      // eager 변환 옵션 추가 - 업로드 시점에 변환 적용
+      // 회전(-90도), 해상도 조정, 비트레이트 제한을 포함한 변환
+      formData.append("eager", "a_-90,w_640,h_360,c_limit,q_auto:low,br_500k");
+
+      // eager_async를 true로 설정하여 비동기 변환 활성화 (큰 파일에 유용)
+      formData.append("eager_async", "true");
+
+      // eager_notification_url을 설정하여 변환 완료 알림을 받을 수 있음 (선택 사항)
+      // formData.append("eager_notification_url", "https://your-webhook-url.com");
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
@@ -437,7 +440,17 @@ const ArcShotCamera = () => {
       }
 
       const data = await response.json();
-      return data.secure_url;
+
+      // eager 변환이 적용된 URL 사용
+      // data.eager[0].secure_url이 변환된 비디오의 URL
+      const transformedUrl =
+        data.eager && data.eager[0]
+          ? data.eager[0].secure_url
+          : data.secure_url;
+
+      addDebugLog(`변환된 URL: ${transformedUrl}`);
+
+      return transformedUrl;
     } catch (error) {
       addDebugLog(`Cloudinary 업로드 오류: ${error}`);
       throw error;
