@@ -208,13 +208,14 @@ const PeerPage = () => {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
     const expectedWsProtocol = protocol === "https:" ? "wss:" : "ws:";
-    const port = process.env.NODE_ENV === "development" ? "9000" : "8080";
+    const port = process.env.NODE_ENV === "development" ? "9000" : "";
+    const portStr = port ? `:${port}` : "";
 
     setDebugInfo(`
       페이지 프로토콜: ${protocol}
       호스트: ${hostname}
       예상 WebSocket 프로토콜: ${expectedWsProtocol}
-      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}:${port}/myapp
+      PeerJS 연결 URL: ${expectedWsProtocol}//${hostname}${portStr}/myapp
     `);
   };
 
@@ -234,23 +235,24 @@ const PeerPage = () => {
     const isSecure =
       typeof window !== "undefined" && window.location.protocol === "https:";
 
-    // 디버깅을 위해 현재 프로토콜 기록
-    console.log(
-      `현재 프로토콜: ${
-        typeof window !== "undefined" ? window.location.protocol : "unknown"
-      }`
-    );
-
+    // Railway는 일반적으로 포트를 명시적으로 지정하지 않음
     return {
       host: process.env.NEXT_PUBLIC_API_URL || window.location.hostname,
-      port: 8080,
+      // Railway에서는 포트를 생략하고 기본 HTTPS 포트(443) 사용
+      // port: 8080,
       path: "/myapp",
-      secure: isSecure, // 현재 페이지 프로토콜에 따라 자동 설정
-      debug: 3, // 디버깅 레벨 증가 (콘솔에 더 많은 정보 표시)
+      secure: isSecure,
+      debug: 3,
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:global.stun.twilio.com:3478" },
+          // TURN 서버 추가 (WebRTC 연결이 NAT/방화벽 뒤에서 실패할 경우 필요)
+          {
+            urls: "turn:numb.viagenie.ca",
+            username: "webrtc@live.com",
+            credential: "muazkh",
+          },
         ],
       },
     };
@@ -263,8 +265,15 @@ const PeerPage = () => {
       if (typeof window !== "undefined") {
         const peerConfig = getPeerConfig();
 
+        // 더 자세한 디버깅 정보
+        const wsUrl = `${peerConfig.secure ? "wss" : "ws"}://${
+          peerConfig.host
+        }${peerConfig.port ? `:${peerConfig.port}` : ""}${peerConfig.path}`;
+
         setDebugInfo(
-          `PeerJS 연결 시도 중... 설정: ${JSON.stringify(peerConfig)}`
+          `PeerJS 연결 시도 중...\n설정: ${JSON.stringify(
+            peerConfig
+          )}\nWebSocket URL: ${wsUrl}`
         );
         setConnectionStatus("PeerJS 서버에 연결 중...");
 
