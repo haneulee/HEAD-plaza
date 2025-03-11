@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
 
+const PEER_VIEWER_ID = "dolly-zoom-viewer";
+
 const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const callingVideoRef = useRef<HTMLVideoElement>(null);
@@ -279,7 +281,7 @@ const PeerPage = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId("dolly-zoom");
+    setMyUniqueId(PEER_VIEWER_ID);
   }, []);
 
   // 컴포넌트 마운트 시 정보 표시

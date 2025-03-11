@@ -23,8 +23,9 @@ export async function POST(request: Request) {
     const filePath = path.join(uploadDir, fileName);
 
     // 영상 파일 저장
-    const buffer = Buffer.from(await video.arrayBuffer());
-    await fs.writeFile(filePath, buffer);
+    const arrayBuffer = await video.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    await fs.writeFile(filePath, uint8Array);
 
     // 클라이언트에서 접근 가능한 URL 반환
     const videoUrl = `/uploads/${fileName}`;

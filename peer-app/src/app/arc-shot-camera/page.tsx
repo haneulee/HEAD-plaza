@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import Peer from "peerjs";
 
-const PEER_ID = "dolly-zoom-camera";
-const PEER_VIEWER_ID = "dolly-zoom-viewer";
+const PEER_ID = "arc-shot-camera";
+const PEER_VIEWER_ID = "arc-shot-viewer";
 
 const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);

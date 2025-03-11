@@ -3,29 +3,28 @@
 import { useEffect, useRef, useState } from "react";
 
 import Peer from "peerjs";
+import { QRCodeSVG } from "qrcode.react";
 
-const PEER_ID = "dolly-zoom-camera";
-const PEER_VIEWER_ID = "dolly-zoom-viewer";
+const PEER_VIEWER_ID = "zero-gravity-viewer";
 
 const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
+  const callingVideoRef = useRef<HTMLVideoElement>(null);
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>("");
-  const [callStatus, setCallStatus] = useState<string>("");
   const [connectionStatus, setConnectionStatus] =
-    useState<string>("연결 중...");
+    useState<string>("Connecting...");
+  const [callStatus, setCallStatus] = useState<string>("");
+  const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
 
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
     try {
-      setDebugInfo("미디어 장치 접근 시도 중...");
+      setDebugInfo("Attempting to access media devices...");
       // 먼저 권한 상태 확인
       const permissions = await navigator.permissions.query({
         name: "camera" as PermissionName,
@@ -33,7 +32,7 @@ const PeerPage = () => {
 
       if (permissions.state === "denied") {
         setMediaError(
-          "카메라 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요."
+          "Camera access denied. Please enable camera permissions in your browser settings."
         );
         return Promise.reject(new Error("Camera permission denied"));
       }
@@ -41,7 +40,7 @@ const PeerPage = () => {
       // 모바일 브라우저 호환성 처리
       if (!navigator.mediaDevices) {
         // 일부 오래된 브라우저에서는 mediaDevices가 없을 수 있음
-        setMediaError("이 브라우저는 미디어 장치 접근을 지원하지 않습니다.");
+        setMediaError("This browser does not support media device access.");
         return Promise.reject(new Error("mediaDevices not supported"));
       }
 
@@ -58,7 +57,7 @@ const PeerPage = () => {
       return stream;
     } catch (err) {
       setDebugInfo(
-        `오류 발생: ${err instanceof Error ? err.name : "알 수 없는 오류"}`
+        `Error occurred: ${err instanceof Error ? err.name : "Unknown error"}`
       );
       console.error("Media access error:", err);
 
@@ -66,12 +65,12 @@ const PeerPage = () => {
         switch (err.name) {
           case "NotAllowedError":
             setMediaError(
-              "카메라/마이크 접근 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요."
+              "Camera/microphone access denied. Please enable permissions in your browser settings."
             );
             break;
           case "NotFoundError":
             setMediaError(
-              "카메라를 찾을 수 없습니다. 카메라가 연결되어 있는지 확인해주세요."
+              "Camera not found. Please check if a camera is connected."
             );
             // 오디오만 시도
             try {
@@ -83,17 +82,17 @@ const PeerPage = () => {
               );
               return audioOnlyStream;
             } catch (audioErr) {
-              setMediaError("오디오 접근에도 실패했습니다.");
+              setMediaError("Audio access also failed.");
             }
             break;
           case "NotReadableError":
             setMediaError(
-              "카메라에 접근할 수 없습니다. 다른 앱이 카메라를 사용 중인지 확인해주세요."
+              "Cannot access camera. Please check if another app is using the camera."
             );
             break;
           case "OverconstrainedError":
             setMediaError(
-              "요청한 미디어 형식이 지원되지 않습니다. 더 낮은 해상도로 시도합니다."
+              "Requested media format not supported. Trying with lower resolution."
             );
             // 더 낮은 해상도로 재시도
             try {
@@ -103,14 +102,16 @@ const PeerPage = () => {
               });
               return lowResStream;
             } catch (lowResErr) {
-              setMediaError("낮은 해상도에서도 카메라 접근에 실패했습니다.");
+              setMediaError("Camera access failed even with lower resolution.");
             }
             break;
           default:
-            setMediaError(`카메라/마이크 접근에 실패했습니다: ${err.message}`);
+            setMediaError(`Failed to access camera/microphone: ${err.message}`);
         }
       } else {
-        setMediaError("알 수 없는 오류로 카메라/마이크 접근에 실패했습니다.");
+        setMediaError(
+          "Failed to access camera/microphone due to unknown error."
+        );
       }
       throw err;
     }
@@ -169,125 +170,6 @@ const PeerPage = () => {
         ],
       },
     };
-  };
-
-  const startRecording = (stream: MediaStream) => {
-    recordedChunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: "video/webm;codecs=vp9",
-    });
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        recordedChunksRef.current.push(event.data);
-      }
-    };
-
-    mediaRecorder.start();
-    mediaRecorderRef.current = mediaRecorder;
-  };
-
-  const stopRecordingAndSave = async () => {
-    return new Promise<string>((resolve, reject) => {
-      if (!mediaRecorderRef.current) {
-        reject(new Error("No media recorder found"));
-        return;
-      }
-
-      mediaRecorderRef.current.onstop = async () => {
-        try {
-          const blob = new Blob(recordedChunksRef.current, {
-            type: "video/webm",
-          });
-
-          // FormData 생성
-          const formData = new FormData();
-          formData.append("video", blob, "recorded-video.webm");
-
-          // 서버에 영상 업로드
-          const response = await fetch("/api/upload-video", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) {
-            throw new Error("Failed to upload video");
-          }
-
-          const { videoUrl } = await response.json();
-          setRecordedVideoUrl(videoUrl);
-          resolve(videoUrl);
-        } catch (error) {
-          reject(error);
-        }
-      };
-
-      mediaRecorderRef.current.stop();
-    });
-  };
-
-  const handleCall = () => {
-    if (!peerInstance) {
-      setCallStatus(
-        "PeerJS 인스턴스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
-      );
-      return;
-    }
-    safeGetUserMedia()
-      .then((stream) => {
-        console.log("미디어 스트림 획득 성공, 통화 시도 중...", PEER_VIEWER_ID);
-        const call = peerInstance.call(PEER_VIEWER_ID, stream);
-
-        if (!call) {
-          setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
-          return;
-        }
-
-        setIsStreaming(true);
-        startRecording(stream); // 녹화 시작
-
-        call.on("stream", (userVideoStream) => {
-          console.log("상대방 스트림 수신 성공");
-        });
-
-        call.on("error", (err) => {
-          console.error("통화 중 오류 발생:", err);
-          setCallStatus(`통화 오류: ${err.toString()}`);
-          setIsStreaming(false); // 에러 발생 시 스트리밍 상태 해제
-        });
-
-        call.on("close", () => {
-          setCallStatus("통화가 종료되었습니다.");
-          setIsStreaming(false); // 통화 종료 시 스트리밍 상태 해제
-        });
-      })
-      .catch((err) => {
-        console.error("Call failed:", err);
-        setCallStatus(`통화 실패: ${err.toString()}`);
-        setIsStreaming(false); // 실패 시 스트리밍 상태 해제
-      });
-  };
-
-  const handleCut = async () => {
-    try {
-      const videoUrl = await stopRecordingAndSave();
-
-      // dolly-zoom 피어에게 녹화된 영상 URL 전달
-      if (peerInstance) {
-        const conn = peerInstance.connect(PEER_VIEWER_ID);
-        conn.on("open", () => {
-          conn.send({
-            type: "recorded-video",
-            url: videoUrl,
-          });
-        });
-      }
-
-      setIsStreaming(false);
-    } catch (error) {
-      console.error("Failed to stop recording:", error);
-      setCallStatus("녹화 종료 중 오류가 발생했습니다.");
-    }
   };
 
   // PeerJS 인스턴스 생성 시 설정 사용
@@ -359,10 +241,35 @@ const PeerPage = () => {
             if (myVideoRef.current) {
               myVideoRef.current.srcObject = stream;
             }
+
+            peer.on("call", (call) => {
+              console.log("Incoming call received.");
+              setCallStatus("Incoming call received.");
+              setIsStreaming(true); // 스트리밍 시작
+
+              call.answer(stream);
+              call.on("stream", (userVideoStream) => {
+                console.log("Remote stream received successfully");
+                if (callingVideoRef.current) {
+                  callingVideoRef.current.srcObject = userVideoStream;
+                  setCallStatus("Call connected");
+                }
+              });
+
+              // call이 끊어질 때 처리
+              call.on("close", () => {
+                console.log("Call ended.");
+                setCallStatus("Call ended");
+                setIsStreaming(false);
+                if (callingVideoRef.current) {
+                  callingVideoRef.current.srcObject = null;
+                }
+              });
+            });
           })
           .catch((err) => {
             console.error("Initial media setup failed:", err);
-            setConnectionStatus("미디어 설정 실패");
+            setConnectionStatus("Media setup failed");
           });
       }
       return () => {
@@ -374,7 +281,7 @@ const PeerPage = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId(PEER_ID);
+    setMyUniqueId(PEER_VIEWER_ID);
   }, []);
 
   // 컴포넌트 마운트 시 정보 표시
@@ -384,21 +291,116 @@ const PeerPage = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (peerInstance) {
+      // 데이터 연결 수신 대기
+      peerInstance.on("connection", (conn) => {
+        conn.on("data", (data: any) => {
+          if (data.type === "recorded-video") {
+            console.log("Received video URL:", data.url);
+            setReceivedVideoUrl(data.url);
+            setIsStreaming(false); // 스트리밍 종료
+          }
+        });
+      });
+    }
+  }, [peerInstance]);
+
   return (
-    <div className="relative h-screen w-screen">
-      <video
-        className="w-full h-full object-cover"
-        playsInline
-        ref={myVideoRef}
-        autoPlay
-        muted
-      />
-      <button
-        onClick={isStreaming ? handleCut : handleCall}
-        className="absolute bottom-8 left-1/2 transform -translate-x-1/2 rotate-90 bg-black text-white px-8 py-3 rounded-lg font-bold mb-8"
-      >
-        {isStreaming ? "Cut!" : "Action!"}
-      </button>
+    <div className="flex flex-col h-screen bg-black text-white">
+      {/* Top explanation section */}
+      <div className="p-8">
+        <h1 className="text-3xl font-bold mb-4">Zero Gravity Effect 🎥</h1>
+        <p className="text-gray-300 max-w-3xl">
+          The Zero Gravity Shot creates the illusion of weightlessness by
+          rotating the camera while filming a subject who appears to be floating
+          or suspended in space. This cinematic technique, popularized in sci-fi
+          and action films, can create a disorienting yet captivating effect
+          that simulates the absence of gravity.
+        </p>
+      </div>
+
+      {/* Videos section */}
+      <div className="flex flex-1 px-8 pb-8">
+        {/* Left section */}
+        <div className="w-1/2 pr-4 flex flex-col">
+          <h2 className="text-xl font-semibold mb-2">
+            Zero Gravity: 2001: A Space Odyssey 🚀
+          </h2>
+          <div className="aspect-video flex-shrink-0 mb-4">
+            <img
+              className="w-full h-full rounded-lg object-cover"
+              src="/sample/zero gravity - space odyssey.gif"
+              alt="Zero gravity scene from 2001: A Space Odyssey"
+            />
+          </div>
+          <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
+            <h3 className="text-lg font-semibold mb-2">
+              How to create your own:
+            </h3>
+            <ol className="text-gray-300 space-y-2 list-decimal list-inside">
+              <li>Start recording on the camera app</li>
+              <li>
+                Rotate the camera while filming a subject who appears to be
+                floating or suspended in space
+              </li>
+              <li>
+                Try to keep the subject centered while you rotate the frame
+              </li>
+              <li>Stop recording when the action is complete</li>
+            </ol>
+          </div>
+        </div>
+
+        {/* Right video */}
+        <div className="w-1/2 pl-4 flex flex-col">
+          {isStreaming ? (
+            <>
+              <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
+              <div className="aspect-video flex-shrink-0">
+                <video
+                  className="w-full h-full rounded-lg object-cover"
+                  playsInline
+                  ref={callingVideoRef}
+                  autoPlay
+                  muted
+                />
+              </div>
+            </>
+          ) : receivedVideoUrl ? (
+            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+              <h2 className="text-xl font-semibold mb-4">
+                Scan to view your Zero Gravity Shot
+              </h2>
+              <div className="bg-white p-4 rounded-lg">
+                <QRCodeSVG value={receivedVideoUrl} size={256} level="H" />
+              </div>
+              <p className="mt-4 text-gray-300">
+                Or click{" "}
+                <a
+                  href={receivedVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  here
+                </a>{" "}
+                to view directly
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+              <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
+              <p className="text-gray-300 text-center">
+                Follow the instructions on the left and start recording from the
+                camera app.
+                <br />
+                Your creation will appear here once complete.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
