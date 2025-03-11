@@ -418,11 +418,7 @@ const ArcShotCamera = () => {
       // 회전(-90도), 해상도 조정, 비트레이트 제한을 포함한 변환
       formData.append("eager", "a_-90,w_640,h_360,c_limit,q_auto:low,br_500k");
 
-      // eager_async를 true로 설정하여 비동기 변환 활성화 (큰 파일에 유용)
-      formData.append("eager_async", "true");
-
-      // eager_notification_url을 설정하여 변환 완료 알림을 받을 수 있음 (선택 사항)
-      // formData.append("eager_notification_url", "https://your-webhook-url.com");
+      // eager_async 제거 (unsigned 업로드에서는 사용 불가)
 
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
