@@ -185,10 +185,10 @@ const PeerPage = () => {
 
     // 지원하는 MIME 타입 확인
     const mimeTypes = [
-      "video/webm;codecs=vp9",
-      "video/webm;codecs=vp8",
+      "video/webm;codecs=vp8", // vp8이 일반적으로 더 작은 파일 크기
       "video/webm",
       "video/mp4",
+      "video/webm;codecs=vp9",
     ];
 
     let mimeType = "";
@@ -208,17 +208,22 @@ const PeerPage = () => {
     try {
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType,
+        videoBitsPerSecond: 1000000, // 1 Mbps로 제한
       });
 
+      // 5초마다 데이터 청크 생성
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
+          addDebugLog(
+            `녹화 청크 크기: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`
+          );
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(5000); // 5초마다 청크 생성
       mediaRecorderRef.current = mediaRecorder;
-      addDebugLog("녹화가 시작되었습니다.");
+      addDebugLog("녹화가 시작되었습니다. (비트레이트: 1Mbps)");
     } catch (err) {
       addDebugLog(`MediaRecorder 생성 실패: ${err}`);
     }
@@ -238,7 +243,16 @@ const PeerPage = () => {
           const blob = new Blob(recordedChunksRef.current, {
             type: mediaRecorderRef.current?.mimeType || "video/webm",
           });
-          addDebugLog(`Blob 생성됨 (크기: ${blob.size} bytes)`);
+          const sizeMB = blob.size / 1024 / 1024;
+          addDebugLog(`Blob 생성됨 (크기: ${sizeMB.toFixed(2)}MB)`);
+
+          if (sizeMB > 40) {
+            throw new Error(
+              `파일 크기가 너무 큽니다 (${sizeMB.toFixed(
+                2
+              )}MB). 40MB 이하여야 합니다.`
+            );
+          }
 
           const formData = new FormData();
           formData.append("video", blob, "recorded-video.webm");
