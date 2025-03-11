@@ -1,4 +1,3 @@
-// src/app/peer/peer.tsx
 "use client";
 
 import { useEffect, useRef, useState } from "react";
