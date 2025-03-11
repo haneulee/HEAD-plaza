@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { FaceDetector } from "@/utils/face-detector";
 import Image from "next/image";
 import Peer from "peerjs";
+import { Viewport } from "./viewport";
 
 const PEER_ID = "dolly-zoom-camera";
 const PEER_VIEWER_ID = "dolly-zoom-viewer";
@@ -12,6 +14,7 @@ const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const viewportRef = useRef<Viewport | null>(null);
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
@@ -483,10 +486,66 @@ const PeerPage = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const container = document.getElementById("viewport-container");
+    if (!container) return;
+
+    const viewport = new Viewport(container);
+    viewportRef.current = viewport;
+
+    // Face detection setup
+    const faceDetector = new FaceDetector();
+    const video = document.querySelector("video");
+
+    let isModelReady = false;
+    let detectionInterval: NodeJS.Timeout;
+
+    // 모델이 로드되고 비디오가 재생 중일 때만 감지 시작
+    const startDetection = async () => {
+      if (!video || !video.readyState || video.readyState < 2) {
+        return;
+      }
+
+      try {
+        const hasDetection = await faceDetector.detect(video);
+        viewport.updateFaceDetection(hasDetection);
+      } catch (error) {
+        console.error("Detection error:", error);
+      }
+    };
+
+    // 비디오가 준비되면 감지 시작
+    video?.addEventListener("loadeddata", () => {
+      if (isModelReady) {
+        detectionInterval = setInterval(startDetection, 100);
+      }
+    });
+
+    // 모델이 로드되면 준비 상태 업데이트
+    faceDetector.initModel().then(() => {
+      isModelReady = true;
+      if (video && video.readyState >= 2) {
+        detectionInterval = setInterval(startDetection, 100);
+      }
+    });
+
+    return () => {
+      if (detectionInterval) {
+        clearInterval(detectionInterval);
+      }
+      viewport.dispose();
+    };
+  }, []);
+
   return (
-    <div className="relative h-screen w-screen">
+    <div
+      id="viewport-container"
+      className="relative h-screen w-screen overflow-hidden"
+    >
       <video
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover transition-transform duration-300"
         playsInline
         ref={myVideoRef}
         autoPlay
