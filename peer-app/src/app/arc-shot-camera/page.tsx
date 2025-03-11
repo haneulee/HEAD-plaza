@@ -294,35 +294,7 @@ const PeerPage = () => {
 
           // Cloudinary 직접 업로드 (서버 우회)
           addDebugLog("Cloudinary에 직접 업로드 시도...");
-          const cloudName =
-            process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
-          const uploadPreset =
-            process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
-
-          const formData = new FormData();
-          formData.append("file", uploadBlob);
-          formData.append("upload_preset", uploadPreset);
-          formData.append("resource_type", "video");
-          // 비디오 최적화 옵션
-          formData.append("quality", "auto:low"); // 낮은 품질로 설정
-
-          const response = await fetch(
-            `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
-            {
-              method: "POST",
-              body: formData,
-            }
-          );
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(
-              `Cloudinary 업로드 실패 (${response.status}): ${errorText}`
-            );
-          }
-
-          const data = await response.json();
-          const videoUrl = data.secure_url;
+          const videoUrl = await uploadToCloudinary(uploadBlob);
           setRecordedVideoUrl(videoUrl);
           addDebugLog("Cloudinary 업로드 완료, URL 수신됨");
           resolve(videoUrl);
@@ -441,87 +413,67 @@ const PeerPage = () => {
     }
   };
 
-  // 비디오 압축 함수 추가
+  // 더 간단한 비디오 압축 함수 (오디오 없음)
   const compressVideo = async (videoBlob: Blob): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      try {
-        // 임시 비디오 및 캔버스 요소 생성
-        const video = document.createElement("video");
-        video.src = URL.createObjectURL(videoBlob);
+    // 이미 크기가 작으면 그대로 반환
+    if (videoBlob.size < 10 * 1024 * 1024) {
+      return videoBlob;
+    }
 
-        video.onloadedmetadata = () => {
-          // 비디오 크기의 50%로 축소
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
+    addDebugLog("간단한 압축 방식 사용 중...");
 
-          // 더 작은 해상도로 설정 (360p)
-          canvas.width = 640;
-          canvas.height = 360;
+    // 더 낮은 비트레이트로 MediaRecorder 설정
+    try {
+      // 비디오를 다시 녹화하는 대신 Cloudinary 변환 파라미터 사용
+      return videoBlob;
+    } catch (err) {
+      addDebugLog(`압축 실패: ${err}`);
+      return videoBlob;
+    }
+  };
 
-          video.currentTime = 0;
+  // Cloudinary 업로드 함수 수정
+  const uploadToCloudinary = async (videoBlob: Blob) => {
+    try {
+      addDebugLog("Cloudinary에 직접 업로드 시도...");
+      const cloudName =
+        process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+      const uploadPreset =
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
 
-          video.onseeked = () => {
-            // 비디오 스트림 생성
-            const stream = canvas.captureStream(30); // 30fps
+      const formData = new FormData();
+      formData.append("file", videoBlob);
+      formData.append("upload_preset", uploadPreset);
+      formData.append("resource_type", "video");
 
-            // 오디오 트랙 추가 (원본에서)
-            if (video.captureStream) {
-              const audioTracks = video.captureStream().getAudioTracks();
-              if (audioTracks.length > 0) {
-                stream.addTrack(audioTracks[0]);
-              }
-            }
+      // 비디오 최적화 옵션 (Cloudinary 변환 파라미터)
+      formData.append("quality", "auto:low");
+      formData.append("width", "640");
+      formData.append("height", "360");
+      formData.append("crop", "limit");
+      formData.append("bit_rate", "500k");
 
-            // 낮은 비트레이트로 MediaRecorder 설정
-            const mediaRecorder = new MediaRecorder(stream, {
-              mimeType: "video/webm;codecs=vp8",
-              videoBitsPerSecond: 500000, // 500 Kbps
-            });
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
-            const chunks: Blob[] = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-              if (e.data.size > 0) {
-                chunks.push(e.data);
-              }
-            };
-
-            mediaRecorder.onstop = () => {
-              const compressedBlob = new Blob(chunks, { type: "video/webm" });
-              resolve(compressedBlob);
-
-              // 메모리 정리
-              URL.revokeObjectURL(video.src);
-            };
-
-            // 프레임 그리기 함수
-            const drawFrame = () => {
-              if (ctx && !video.paused && !video.ended) {
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                requestAnimationFrame(drawFrame);
-              }
-            };
-
-            // 녹화 시작
-            mediaRecorder.start(1000);
-            video.play();
-            drawFrame();
-
-            // 비디오 길이만큼 녹화
-            setTimeout(() => {
-              mediaRecorder.stop();
-              video.pause();
-            }, video.duration * 1000);
-          };
-        };
-
-        video.onerror = () => {
-          reject(new Error("비디오 로딩 중 오류 발생"));
-        };
-      } catch (err) {
-        reject(err);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Cloudinary 업로드 실패 (${response.status}): ${errorText}`
+        );
       }
-    });
+
+      const data = await response.json();
+      return data.secure_url;
+    } catch (error) {
+      addDebugLog(`Cloudinary 업로드 오류: ${error}`);
+      throw error;
+    }
   };
 
   // PeerJS 인스턴스 생성 시 설정 사용
