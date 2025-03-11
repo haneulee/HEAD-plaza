@@ -6,8 +6,6 @@ import { InfoPopup } from "@/components/InfoPopup";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
 
-const PEER_VIEWER_ID = "arc-shot-viewer";
-
 const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const callingVideoRef = useRef<HTMLVideoElement>(null);
@@ -22,6 +20,11 @@ const PeerPage = () => {
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  // 고정 ID 대신 랜덤 ID 생성 함수 추가
+  const generateUniqueId = () => {
+    return `arc-shot-viewer-${Math.random().toString(36).substr(2, 9)}`;
+  };
 
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
@@ -283,7 +286,8 @@ const PeerPage = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId(PEER_VIEWER_ID);
+    // 고정 ID 대신 랜덤 ID 사용
+    setMyUniqueId(generateUniqueId());
   }, []);
 
   // 컴포넌트 마운트 시 정보 표시

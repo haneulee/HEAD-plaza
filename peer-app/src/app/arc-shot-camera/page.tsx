@@ -24,6 +24,9 @@ const PeerPage = () => {
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -184,6 +187,7 @@ const PeerPage = () => {
 
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
+    setRecordingDuration(0); // 녹화 시간 초기화
 
     // 지원하는 MIME 타입 확인
     const mimeTypes = [
@@ -210,7 +214,7 @@ const PeerPage = () => {
     try {
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType,
-        videoBitsPerSecond: 1000000, // 1 Mbps로 제한
+        videoBitsPerSecond: 800000, // 800 Kbps로 더 낮게 제한 (파일 크기 감소)
       });
 
       // 5초마다 데이터 청크 생성
@@ -225,7 +229,25 @@ const PeerPage = () => {
 
       mediaRecorder.start(5000); // 5초마다 청크 생성
       mediaRecorderRef.current = mediaRecorder;
-      addDebugLog("녹화가 시작되었습니다. (비트레이트: 1Mbps)");
+      addDebugLog("녹화가 시작되었습니다. (비트레이트: 800Kbps)");
+
+      // 1분 타이머 설정
+      const timer = window.setInterval(() => {
+        setRecordingDuration((prev) => {
+          const newDuration = prev + 1;
+
+          // 최대 녹화 시간 도달 시 자동 종료
+          if (newDuration >= MAX_RECORDING_DURATION) {
+            addDebugLog("최대 녹화 시간(1분) 도달, 자동 종료");
+            clearInterval(timer);
+            handleCut(); // 녹화 종료 함수 호출
+          }
+
+          return newDuration;
+        });
+      }, 1000);
+
+      setRecordingTimer(timer);
     } catch (err) {
       addDebugLog(`MediaRecorder 생성 실패: ${err}`);
     }
@@ -238,6 +260,12 @@ const PeerPage = () => {
         return;
       }
 
+      // 타이머 정리
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+        setRecordingTimer(null);
+      }
+
       addDebugLog("녹화 중지 중...");
       mediaRecorderRef.current.onstop = async () => {
         try {
@@ -248,31 +276,55 @@ const PeerPage = () => {
           const sizeMB = blob.size / 1024 / 1024;
           addDebugLog(`Blob 생성됨 (크기: ${sizeMB.toFixed(2)}MB)`);
 
-          if (sizeMB > 40) {
-            throw new Error(
-              `파일 크기가 너무 큽니다 (${sizeMB.toFixed(
-                2
-              )}MB). 40MB 이하여야 합니다.`
-            );
+          // 파일 크기가 너무 크면 압축 시도
+          let uploadBlob = blob;
+          if (sizeMB > 10) {
+            // Cloudinary 무료 계정 제한
+            addDebugLog(`파일 크기가 큽니다. 압축 시도 중...`);
+            try {
+              // 비디오 압축 로직 (간단한 해상도 축소)
+              const compressedBlob = await compressVideo(blob);
+              const compressedSizeMB = compressedBlob.size / 1024 / 1024;
+              addDebugLog(`압축 후 크기: ${compressedSizeMB.toFixed(2)}MB`);
+              uploadBlob = compressedBlob;
+            } catch (compressErr) {
+              addDebugLog(`압축 실패: ${compressErr}. 원본 사용`);
+            }
           }
 
-          const formData = new FormData();
-          formData.append("video", blob, "recorded-video.webm");
+          // Cloudinary 직접 업로드 (서버 우회)
+          addDebugLog("Cloudinary에 직접 업로드 시도...");
+          const cloudName =
+            process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+          const uploadPreset =
+            process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
 
-          addDebugLog("서버에 영상 업로드 중...");
-          const response = await fetch("/api/upload-video", {
-            method: "POST",
-            body: formData,
-          });
+          const formData = new FormData();
+          formData.append("file", uploadBlob);
+          formData.append("upload_preset", uploadPreset);
+          formData.append("resource_type", "video");
+          // 비디오 최적화 옵션
+          formData.append("quality", "auto:low"); // 낮은 품질로 설정
+
+          const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
 
           if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`업로드 실패 (${response.status}): ${errorText}`);
+            throw new Error(
+              `Cloudinary 업로드 실패 (${response.status}): ${errorText}`
+            );
           }
 
-          const { videoUrl } = await response.json();
+          const data = await response.json();
+          const videoUrl = data.secure_url;
           setRecordedVideoUrl(videoUrl);
-          addDebugLog("업로드 완료, URL 수신됨");
+          addDebugLog("Cloudinary 업로드 완료, URL 수신됨");
           resolve(videoUrl);
         } catch (error) {
           addDebugLog(`저장 중 오류 발생: ${error}`);
@@ -389,6 +441,89 @@ const PeerPage = () => {
     }
   };
 
+  // 비디오 압축 함수 추가
+  const compressVideo = async (videoBlob: Blob): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      try {
+        // 임시 비디오 및 캔버스 요소 생성
+        const video = document.createElement("video");
+        video.src = URL.createObjectURL(videoBlob);
+
+        video.onloadedmetadata = () => {
+          // 비디오 크기의 50%로 축소
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          // 더 작은 해상도로 설정 (360p)
+          canvas.width = 640;
+          canvas.height = 360;
+
+          video.currentTime = 0;
+
+          video.onseeked = () => {
+            // 비디오 스트림 생성
+            const stream = canvas.captureStream(30); // 30fps
+
+            // 오디오 트랙 추가 (원본에서)
+            if (video.captureStream) {
+              const audioTracks = video.captureStream().getAudioTracks();
+              if (audioTracks.length > 0) {
+                stream.addTrack(audioTracks[0]);
+              }
+            }
+
+            // 낮은 비트레이트로 MediaRecorder 설정
+            const mediaRecorder = new MediaRecorder(stream, {
+              mimeType: "video/webm;codecs=vp8",
+              videoBitsPerSecond: 500000, // 500 Kbps
+            });
+
+            const chunks: Blob[] = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                chunks.push(e.data);
+              }
+            };
+
+            mediaRecorder.onstop = () => {
+              const compressedBlob = new Blob(chunks, { type: "video/webm" });
+              resolve(compressedBlob);
+
+              // 메모리 정리
+              URL.revokeObjectURL(video.src);
+            };
+
+            // 프레임 그리기 함수
+            const drawFrame = () => {
+              if (ctx && !video.paused && !video.ended) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                requestAnimationFrame(drawFrame);
+              }
+            };
+
+            // 녹화 시작
+            mediaRecorder.start(1000);
+            video.play();
+            drawFrame();
+
+            // 비디오 길이만큼 녹화
+            setTimeout(() => {
+              mediaRecorder.stop();
+              video.pause();
+            }, video.duration * 1000);
+          };
+        };
+
+        video.onerror = () => {
+          reject(new Error("비디오 로딩 중 오류 발생"));
+        };
+      } catch (err) {
+        reject(err);
+      }
+    });
+  };
+
   // PeerJS 인스턴스 생성 시 설정 사용
   useEffect(() => {
     if (myUniqueId) {
@@ -483,6 +618,15 @@ const PeerPage = () => {
     }
   }, []);
 
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (recordingTimer) {
+        clearInterval(recordingTimer);
+      }
+    };
+  }, [recordingTimer]);
+
   return (
     <div className="relative h-screen w-screen">
       <video
@@ -533,6 +677,18 @@ const PeerPage = () => {
           ))}
         </div>
       </div>
+
+      {/* 녹화 시간 표시 추가 */}
+      {isStreaming && (
+        <div className="absolute top-20 left-4 bg-red-600 text-white px-4 py-2 rounded-lg z-10">
+          녹화 중: {Math.floor(recordingDuration / 60)}:
+          {(recordingDuration % 60).toString().padStart(2, "0")}
+          {recordingDuration >= MAX_RECORDING_DURATION - 10 &&
+            recordingDuration < MAX_RECORDING_DURATION && (
+              <span className="ml-2 animate-pulse">곧 종료됩니다!</span>
+            )}
+        </div>
+      )}
     </div>
   );
 };
