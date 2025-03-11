@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
-import fs from "fs/promises";
-import path from "path";
+import { v2 as cloudinary } from "cloudinary";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+export const runtime = "nodejs";
+
+// Cloudinary 응답 타입 정의
+type CloudinaryResponse = {
+  secure_url: string;
+};
 
 export async function POST(request: Request) {
   try {
@@ -14,23 +26,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // 영상을 저장할 디렉토리 생성
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await fs.mkdir(uploadDir, { recursive: true });
-
-    // 파일명 생성 (타임스탬프 사용)
-    const fileName = `video-${Date.now()}.webm`;
-    const filePath = path.join(uploadDir, fileName);
-
-    // 영상 파일 저장
+    // Blob을 Buffer로 변환
     const arrayBuffer = await video.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    await fs.writeFile(filePath, uint8Array);
+    const buffer = Buffer.from(arrayBuffer);
 
-    // 클라이언트에서 접근 가능한 URL 반환
-    const videoUrl = `/uploads/${fileName}`;
+    // Cloudinary에 업로드
+    const result = await new Promise<CloudinaryResponse>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: "video",
+          folder: "videos",
+          transformation: [
+            { quality: "auto" }, // 자동 품질 최적화
+            { fetch_format: "auto" }, // 최적의 포맷 선택
+          ],
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result as CloudinaryResponse);
+        }
+      );
 
-    return NextResponse.json({ videoUrl });
+      // Buffer를 스트림으로 변환하여 업로드
+      const Readable = require("stream").Readable;
+      const stream = new Readable();
+      stream.push(buffer);
+      stream.push(null);
+      stream.pipe(uploadStream);
+    });
+
+    return NextResponse.json({
+      videoUrl: result.secure_url,
+    });
   } catch (error) {
     console.error("Upload error:", error);
     return NextResponse.json(
