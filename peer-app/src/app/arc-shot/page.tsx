@@ -337,9 +337,13 @@ const ArcShot = () => {
           {isStreaming ? (
             <>
               <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
-              <div className="aspect-video flex-shrink-0">
+              <div className="aspect-video flex-shrink-0 relative">
                 <video
                   className="w-full h-full rounded-lg object-cover"
+                  style={{
+                    transform: "rotate(90deg)", // 비디오를 90도 회전
+                    objectFit: "cover",
+                  }}
                   playsInline
                   ref={callingVideoRef}
                   autoPlay
