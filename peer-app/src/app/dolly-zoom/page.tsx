@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { InfoPopup } from "@/components/InfoPopup";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -20,6 +21,7 @@ const PeerPage = () => {
   const [callStatus, setCallStatus] = useState<string>("");
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
@@ -308,6 +310,16 @@ const PeerPage = () => {
 
   return (
     <div className="flex flex-col h-screen bg-black text-white">
+      {/* Info 버튼 추가 */}
+      <button
+        onClick={() => setIsInfoOpen(true)}
+        className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg hover:bg-opacity-70 z-10"
+      >
+        <span className="text-2xl">🍿</span>
+      </button>
+
+      {/* Info 팝업 */}
+      <InfoPopup isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} />
       {/* Top explanation section */}
       <div className="p-8">
         <h1 className="text-3xl font-bold mb-4">Dolly Zoom Effect 🎥</h1>

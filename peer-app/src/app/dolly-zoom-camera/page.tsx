@@ -576,7 +576,7 @@ const PeerPage = () => {
       )}
 
       {/* 디버깅 정보와 로그를 함께 표시 */}
-      <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
+      {/* <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
         <div>연결 상태: {connectionStatus}</div>
         <div>통화 상태: {callStatus}</div>
         <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
@@ -591,7 +591,7 @@ const PeerPage = () => {
             </div>
           ))}
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
