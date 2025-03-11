@@ -6,7 +6,6 @@ import Image from "next/image";
 import Peer from "peerjs";
 
 const PEER_ID = "arc-shot-camera";
-const PEER_VIEWER_ID = "arc-shot-viewer";
 
 const PeerPage = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
@@ -15,6 +14,7 @@ const PeerPage = () => {
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
+  const [viewerId, setViewerId] = useState<string>("");
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>("");
   const [callStatus, setCallStatus] = useState<string>("");
@@ -185,6 +185,16 @@ const PeerPage = () => {
     };
   };
 
+  // 새로운 함수: URL에서 viewerId 파라미터 가져오기
+  const getViewerIdFromUrl = () => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get("viewerId");
+      return id || "arc-shot-viewer"; // 기본값 제공
+    }
+    return "arc-shot-viewer"; // 서버 사이드에서는 기본값 반환
+  };
+
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
     setRecordingDuration(0); // 녹화 시간 초기화
@@ -335,8 +345,8 @@ const PeerPage = () => {
           addDebugLog("비디오 요소에 스트림 연결됨");
         }
 
-        const call = peerInstance.call(PEER_VIEWER_ID, stream);
-        addDebugLog("피어 호출 시도: " + PEER_VIEWER_ID);
+        const call = peerInstance.call(viewerId, stream);
+        addDebugLog("피어 호출 시도: " + viewerId);
 
         if (!call) {
           addDebugLog("통화 연결 실패");
@@ -391,7 +401,7 @@ const PeerPage = () => {
 
       if (peerInstance) {
         addDebugLog("녹화 영상 URL 전송 시도");
-        const conn = peerInstance.connect(PEER_VIEWER_ID);
+        const conn = peerInstance.connect(viewerId);
         conn.on("open", () => {
           conn.send({
             type: "recorded-video",
@@ -561,6 +571,10 @@ const PeerPage = () => {
 
   useEffect(() => {
     setMyUniqueId(PEER_ID);
+    // URL에서 viewerId 가져오기
+    const urlViewerId = getViewerIdFromUrl();
+    setViewerId(urlViewerId);
+    addDebugLog(`Viewer ID from URL: ${urlViewerId}`);
   }, []);
 
   // 컴포넌트 마운트 시 정보 표시
@@ -617,6 +631,7 @@ const PeerPage = () => {
         <div>연결 상태: {connectionStatus}</div>
         <div>통화 상태: {callStatus}</div>
         <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
+        <div>뷰어 ID: {viewerId}</div>
         <div className="h-px bg-white my-2" />
         <div className="text-xs">
           {debugLogs.map((log, index) => (

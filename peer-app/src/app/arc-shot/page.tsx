@@ -26,6 +26,15 @@ const PeerPage = () => {
     return `arc-shot-viewer-${Math.random().toString(36).substr(2, 9)}`;
   };
 
+  // URL에 ID 파라미터 추가하는 함수
+  const updateUrlWithId = (id: string) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("id", id);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   // 안전하게 getUserMedia를 호출하는 함수
   const safeGetUserMedia = async () => {
     try {
@@ -287,7 +296,10 @@ const PeerPage = () => {
 
   useEffect(() => {
     // 고정 ID 대신 랜덤 ID 사용
-    setMyUniqueId(generateUniqueId());
+    const newId = generateUniqueId();
+    setMyUniqueId(newId);
+    // URL에 ID 추가
+    updateUrlWithId(newId);
   }, []);
 
   // 컴포넌트 마운트 시 정보 표시
@@ -333,6 +345,34 @@ const PeerPage = () => {
           creating a dramatic, immersive effect that can emphasize emotional
           moments or reveal important visual information to the audience.
         </p>
+        {/* 카메라 앱 링크 추가 */}
+        {myUniqueId && (
+          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Camera App Link:</h3>
+            <div className="flex items-center space-x-4">
+              <input
+                type="text"
+                readOnly
+                value={`${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`}
+                className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`
+                  );
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-gray-400 mt-2 text-sm">
+              Share this link with the camera operator to connect to this
+              viewer.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Videos section */}
