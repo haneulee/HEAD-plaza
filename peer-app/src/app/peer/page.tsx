@@ -17,6 +17,9 @@ const PeerPage = () => {
   );
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [debugInfo, setDebugInfo] = useState<string>("");
+  const [connectionStatus, setConnectionStatus] =
+    useState<string>("연결 중...");
+  const [callStatus, setCallStatus] = useState<string>("");
 
   const generateRandomString = () => Math.random().toString(36).substring(2);
 
@@ -119,20 +122,51 @@ const PeerPage = () => {
   };
 
   const handleCall = () => {
-    if (!peerInstance) return;
+    if (!peerInstance) {
+      setCallStatus(
+        "PeerJS 인스턴스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
+      );
+      return;
+    }
+
+    if (!idToCall || idToCall.trim() === "") {
+      setCallStatus("통화할 상대방 ID를 입력해주세요.");
+      return;
+    }
+
+    setCallStatus("통화 연결 중...");
 
     safeGetUserMedia()
       .then((stream) => {
+        console.log("미디어 스트림 획득 성공, 통화 시도 중...", idToCall);
         const call = peerInstance.call(idToCall, stream);
-        if (call) {
-          call.on("stream", (userVideoStream) => {
-            if (callingVideoRef.current) {
-              callingVideoRef.current.srcObject = userVideoStream;
-            }
-          });
+
+        if (!call) {
+          setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
+          return;
         }
+
+        call.on("stream", (userVideoStream) => {
+          console.log("상대방 스트림 수신 성공");
+          if (callingVideoRef.current) {
+            callingVideoRef.current.srcObject = userVideoStream;
+            setCallStatus("통화 연결됨");
+          }
+        });
+
+        call.on("error", (err) => {
+          console.error("통화 중 오류 발생:", err);
+          setCallStatus(`통화 오류: ${err.toString()}`);
+        });
+
+        call.on("close", () => {
+          setCallStatus("통화가 종료되었습니다.");
+        });
       })
-      .catch((err) => console.error("Call failed:", err));
+      .catch((err) => {
+        console.error("Call failed:", err);
+        setCallStatus(`통화 실패: ${err.toString()}`);
+      });
   };
 
   const switchCamera = async () => {
@@ -196,12 +230,23 @@ const PeerPage = () => {
       };
     }
 
-    // 프로덕션 환경
+    // 프로덕션 환경 - 버셀 배포용 설정
+    const isSecure =
+      typeof window !== "undefined" && window.location.protocol === "https:";
+
+    // 디버깅을 위해 현재 프로토콜 기록
+    console.log(
+      `현재 프로토콜: ${
+        typeof window !== "undefined" ? window.location.protocol : "unknown"
+      }`
+    );
+
     return {
-      host: process.env.NEXT_PUBLIC_API_URL || "localhost", // Vercel 환경변수 사용
-      port: 8080, // 프로덕션 환경에서는 8080 포트 사용
+      host: process.env.NEXT_PUBLIC_API_URL || window.location.hostname,
+      port: 8080,
       path: "/myapp",
-      secure: true, // Railway가 HTTPS를 사용하는 경우 true로 유지
+      secure: isSecure, // 현재 페이지 프로토콜에 따라 자동 설정
+      debug: 3, // 디버깅 레벨 증가 (콘솔에 더 많은 정보 표시)
       config: {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
@@ -221,12 +266,24 @@ const PeerPage = () => {
         setDebugInfo(
           `PeerJS 연결 시도 중... 설정: ${JSON.stringify(peerConfig)}`
         );
+        setConnectionStatus("PeerJS 서버에 연결 중...");
+
+        // 디버깅을 위한 추가 정보
+        console.log("PeerJS 설정:", peerConfig);
+        console.log("현재 URL:", window.location.href);
+        console.log(
+          "WebSocket URL:",
+          `${peerConfig.secure ? "wss" : "ws"}://${peerConfig.host}:${
+            peerConfig.port
+          }${peerConfig.path}`
+        );
 
         peer = new Peer(myUniqueId, peerConfig);
 
         // 연결 이벤트 리스너 추가
         peer.on("open", (id) => {
           setDebugInfo(`PeerJS 연결 성공: ${id}`);
+          setConnectionStatus("PeerJS 서버에 연결됨");
         });
 
         peer.on("error", (err) => {
@@ -237,6 +294,7 @@ const PeerPage = () => {
             }`
           );
           setMediaError(`PeerJS 연결 실패: ${err.type}`);
+          setConnectionStatus(`연결 오류: ${err.type}`);
 
           // 연결 재시도 로직
           if (
@@ -244,8 +302,10 @@ const PeerPage = () => {
             err.type === "server-error" ||
             err.type === "socket-error"
           ) {
+            setConnectionStatus("5초 후 재연결 시도...");
             setTimeout(() => {
               setDebugInfo("PeerJS 연결 재시도 중...");
+              setConnectionStatus("재연결 시도 중...");
               peer.reconnect();
             }, 5000);
           }
@@ -260,15 +320,22 @@ const PeerPage = () => {
             }
 
             peer.on("call", (call) => {
+              console.log("수신 통화가 있습니다.");
+              setCallStatus("수신 통화가 있습니다.");
               call.answer(stream);
               call.on("stream", (userVideoStream) => {
+                console.log("상대방 스트림 수신 성공");
                 if (callingVideoRef.current) {
                   callingVideoRef.current.srcObject = userVideoStream;
+                  setCallStatus("통화 연결됨");
                 }
               });
             });
           })
-          .catch((err) => console.error("Initial media setup failed:", err));
+          .catch((err) => {
+            console.error("Initial media setup failed:", err);
+            setConnectionStatus("미디어 설정 실패");
+          });
       }
       return () => {
         if (peer) {
@@ -292,6 +359,7 @@ const PeerPage = () => {
   return (
     <div className="flex flex-col justify-center items-center p-12">
       <p>your id : {myUniqueId}</p>
+      <p className="text-sm font-semibold mb-2">상태: {connectionStatus}</p>
       {mediaError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
           {mediaError}
@@ -313,6 +381,9 @@ const PeerPage = () => {
       >
         call
       </button>
+      {callStatus && (
+        <div className="text-sm mt-2 p-2 bg-gray-100 rounded">{callStatus}</div>
+      )}
       <button
         onClick={switchCamera}
         className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded mt-2 ml-2"
