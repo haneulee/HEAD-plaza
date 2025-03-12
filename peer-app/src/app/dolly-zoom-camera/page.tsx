@@ -329,8 +329,9 @@ const DollyZoomCamera = () => {
           setCallStatus("스트리밍 시작됨");
           addDebugLog("스트리밍 상태 true로 설정");
 
-          startRecording(stream);
-          addDebugLog("녹화 시작됨");
+          // 여기를 수정: 원본 stream 대신 canvasStream을 녹화
+          startRecording(canvasStream);
+          addDebugLog("줌 효과가 적용된 캔버스 스트림 녹화 시작됨");
 
           call.on("stream", (userVideoStream) => {
             addDebugLog("상대방 스트림 수신 성공");
@@ -479,29 +480,35 @@ const DollyZoomCamera = () => {
     const canvas = canvasRef.current;
     if (!video || !canvas || !canvas.getContext) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    // Canvas 크기를 비디오 크기와 동일하게 설정
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // 캔버스 크기 조정은 한 번만 수행
+    if (
+      canvas.width !== video.videoWidth ||
+      canvas.height !== video.videoHeight
+    ) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
 
-    // 현재 zoom 레벨 계산 (얼굴 감지 여부에 따라)
+    // 현재 zoom 레벨 계산
     const targetZoom = hasDetection ? 2.0 : 1.0;
     const currentZoom = viewportRef.current?.getCurrentZoom() || 1.0;
-    const smoothZoom = currentZoom + (targetZoom - currentZoom) * 0.1;
+    // 부드러운 전환 계수를 더 크게 설정하여 업데이트 횟수 감소
+    const smoothZoom = currentZoom + (targetZoom - currentZoom) * 0.2;
 
-    // Canvas에서 실제 zoom 처리
+    // Canvas 렌더링 최적화
+    ctx.save();
+    ctx.imageSmoothingQuality = "low"; // 이미지 품질을 낮춰 성능 향상
+
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
-    ctx.save();
     ctx.translate(centerX, centerY);
     ctx.scale(smoothZoom, smoothZoom);
     ctx.translate(-centerX, -centerY);
 
-    // 비디오 프레임 그리기
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
     ctx.restore();
   };
 
@@ -607,12 +614,24 @@ const DollyZoomCamera = () => {
 
     let isModelReady = false;
     let detectionInterval: NodeJS.Timeout;
+    let lastDetectionTime = 0;
+    let lastDetectionResult = false;
 
     const startDetection = async () => {
       if (!video || !video.readyState || video.readyState < 2) return;
 
+      // 현재 시간 체크
+      const now = Date.now();
+      // 마지막 감지로부터 200ms가 지나지 않았다면 이전 결과 재사용
+      if (now - lastDetectionTime < 200) {
+        processVideoFrame(lastDetectionResult);
+        return;
+      }
+
       try {
         const hasDetection = await faceDetector.detect(video);
+        lastDetectionResult = hasDetection;
+        lastDetectionTime = now;
         viewport.updateFaceDetection(hasDetection);
         processVideoFrame(hasDetection);
       } catch (error) {
@@ -623,7 +642,8 @@ const DollyZoomCamera = () => {
     // 비디오가 준비되면 감지 시작
     video?.addEventListener("loadeddata", () => {
       if (isModelReady) {
-        detectionInterval = setInterval(startDetection, 100);
+        // 감지 간격을 200ms로 늘림 (초당 5회)
+        detectionInterval = setInterval(startDetection, 200);
       }
     });
 
@@ -631,7 +651,7 @@ const DollyZoomCamera = () => {
     faceDetector.initModel().then(() => {
       isModelReady = true;
       if (video && video.readyState >= 2) {
-        detectionInterval = setInterval(startDetection, 100);
+        detectionInterval = setInterval(startDetection, 200);
       }
     });
 
