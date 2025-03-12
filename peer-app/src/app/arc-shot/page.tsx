@@ -321,7 +321,7 @@ const ArcShot = () => {
                     style={{
                       transform: "rotate(-90deg)",
                       objectFit: "cover",
-                      left: "-20%",
+                      left: "10%",
                       top: "-20%",
                     }}
                     playsInline
