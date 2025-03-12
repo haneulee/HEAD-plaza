@@ -536,17 +536,7 @@ const ZeroGravityCamera = () => {
 
   return (
     <div className="relative h-[100dvh] w-screen">
-      <video
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-        }}
-        playsInline
-        ref={myVideoRef}
-        autoPlay
-        muted
-      />
+      <video playsInline ref={myVideoRef} autoPlay muted />
       <button
         onClick={isStreaming ? handleCut : handleCall}
         disabled={isProcessing}
