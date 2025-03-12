@@ -43,4 +43,8 @@ export class Viewport {
       cancelAnimationFrame(this.animationFrameId);
     }
   }
+
+  getCurrentZoom(): number {
+    return this.currentZoom;
+  }
 }
