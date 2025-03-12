@@ -315,8 +315,8 @@ const ZeroGravityShot = () => {
                     style={{
                       transform: "rotate(-90deg) translate(-50%, -50%)",
                       transformOrigin: "0 0",
-                      width: "200%" /* 177.78%에서 200%로 증가 */,
-                      height: "auto",
+                      width: "177.78vh",
+                      height: "100vh",
                       top: "50%",
                       left: "50%",
                       objectFit: "cover",

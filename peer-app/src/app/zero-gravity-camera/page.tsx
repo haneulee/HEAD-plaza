@@ -537,12 +537,12 @@ const ZeroGravityCamera = () => {
   return (
     <div className="relative h-screen w-screen">
       <video
-        className="w-full h-full object-cover"
+        className="w-full h-full"
         playsInline
         style={{
           width: "100%",
-          height: "100%",
-          objectFit: "contain",
+          height: "100vh",
+          objectFit: "cover",
         }}
         ref={myVideoRef}
         autoPlay
