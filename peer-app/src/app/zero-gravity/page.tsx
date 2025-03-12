@@ -308,18 +308,14 @@ const ZeroGravityShot = () => {
                 : "Ready to start!"}
             </h2>
             {isStreaming ? (
-              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center overflow-hidden">
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
                 <div className="w-full h-full relative">
                   <video
                     className="rounded-lg absolute"
                     style={{
-                      transform: "rotate(-90deg) translate(-50%, -50%)",
-                      transformOrigin: "0 0",
-                      width: "177.78vh",
-                      height: "100vh",
-                      top: "50%",
-                      left: "50%",
-                      objectFit: "cover",
+                      transform: "rotate(-90deg)",
+                      top: "-20%",
+                      left: "10%",
                     }}
                     playsInline
                     ref={callingVideoRef}

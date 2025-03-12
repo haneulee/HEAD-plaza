@@ -538,12 +538,12 @@ const ArcShotCamera = () => {
   }, [recordingTimer]);
 
   return (
-    <div className="relative h-screen w-screen">
+    <div className="relative h-[100dvh] w-screen">
       <video
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",
+          objectFit: "cover",
         }}
         playsInline
         ref={myVideoRef}
