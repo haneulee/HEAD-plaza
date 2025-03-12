@@ -6,8 +6,7 @@ import { FaceDetector } from "@/utils/face-detector";
 import Image from "next/image";
 import Peer from "peerjs";
 import { Viewport } from "./viewport";
-
-const PEER_ID = "dolly-zoom-camera";
+import { generateUniqueId } from "@/utils/generateUniqueId";
 
 const DollyZoomCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
@@ -523,7 +522,9 @@ const DollyZoomCamera = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId(PEER_ID);
+    const newId = generateUniqueId();
+    setMyUniqueId(newId);
+
     // URL에서 viewerId 가져오기
     const urlViewerId = getViewerIdFromUrl();
     setViewerId(urlViewerId);
@@ -600,6 +601,11 @@ const DollyZoomCamera = () => {
       <video
         className="w-full h-full object-cover transition-transform duration-300"
         playsInline
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
         ref={myVideoRef}
         autoPlay
         muted
@@ -645,18 +651,6 @@ const DollyZoomCamera = () => {
           ))}
         </div>
       </div> */}
-
-      {/* 녹화 시간 표시 추가 */}
-      {/* {isStreaming && (
-        <div className="absolute top-20 left-4 bg-red-600 text-white px-4 py-2 rounded-lg z-10">
-          녹화 중: {Math.floor(recordingDuration / 60)}:
-          {(recordingDuration % 60).toString().padStart(2, "0")}
-          {recordingDuration >= MAX_RECORDING_DURATION - 10 &&
-            recordingDuration < MAX_RECORDING_DURATION && (
-              <span className="ml-2 animate-pulse">곧 종료됩니다!</span>
-            )}
-        </div>
-      )} */}
     </div>
   );
 };

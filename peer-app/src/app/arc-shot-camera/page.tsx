@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import Image from "next/image";
 import Peer from "peerjs";
+import { generateUniqueId } from "@/utils/generateUniqueId";
 
 const ArcShotCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
@@ -22,11 +23,6 @@ const ArcShotCamera = () => {
   const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
-
-  // 고정 ID 대신 랜덤 ID 생성 함수 추가
-  const generateUniqueId = () => {
-    return `${Math.random().toString(36).substr(2, 9)}`;
-  };
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -544,7 +540,11 @@ const ArcShotCamera = () => {
   return (
     <div className="relative h-screen w-screen">
       <video
-        className="w-full h-full object-cover"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+        }}
         playsInline
         ref={myVideoRef}
         autoPlay
@@ -592,18 +592,6 @@ const ArcShotCamera = () => {
           ))}
         </div>
       </div> */}
-
-      {/* 녹화 시간 표시 추가 */}
-      {/* {isStreaming && (
-        <div className="absolute top-20 left-4 bg-red-600 text-white px-4 py-2 rounded-lg z-10">
-          녹화 중: {Math.floor(recordingDuration / 60)}:
-          {(recordingDuration % 60).toString().padStart(2, "0")}
-          {recordingDuration >= MAX_RECORDING_DURATION - 10 &&
-            recordingDuration < MAX_RECORDING_DURATION && (
-              <span className="ml-2 animate-pulse">곧 종료됩니다!</span>
-            )}
-        </div>
-      )} */}
     </div>
   );
 };
