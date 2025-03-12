@@ -311,7 +311,7 @@ const ZeroGravityShot = () => {
               <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
                 <div className="w-full h-full relative">
                   <video
-                    className="rounded-lg absolute w-[140%] h-[140%]"
+                    className="rounded-lg absolute"
                     style={{
                       transform: "rotate(-90deg)",
                       objectFit: "cover",
