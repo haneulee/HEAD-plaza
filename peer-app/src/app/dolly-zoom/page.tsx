@@ -280,6 +280,9 @@ const DollyZoom = () => {
               muted
               playsInline
               src="/sample/dolly zoom - jaws.mov"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.playbackRate = 0.5; // 0.5배속 (원래 속도의 절반)
+              }}
             />
           </div>
           <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
@@ -316,6 +319,7 @@ const DollyZoom = () => {
                     className="rounded-lg absolute"
                     style={{
                       transform: "rotate(-90deg)",
+                      width: "100%",
                       top: "-20%",
                       left: "10%",
                     }}

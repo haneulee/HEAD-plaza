@@ -280,6 +280,9 @@ const ArcShot = () => {
               muted
               playsInline
               src="/sample/arc shot - matrix.mp4"
+              onLoadedMetadata={(e) => {
+                e.currentTarget.playbackRate = 0.5; // 0.5배속 (원래 속도의 절반)
+              }}
             />
           </div>
           <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
@@ -317,6 +320,7 @@ const ArcShot = () => {
                     className="rounded-lg absolute"
                     style={{
                       transform: "rotate(-90deg)",
+                      width: "100%",
                       top: "-20%",
                       left: "10%",
                     }}

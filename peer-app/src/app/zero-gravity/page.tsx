@@ -314,6 +314,7 @@ const ZeroGravityShot = () => {
                     className="rounded-lg absolute"
                     style={{
                       transform: "rotate(-90deg)",
+                      width: "100%",
                       top: "-20%",
                       left: "10%",
                     }}
