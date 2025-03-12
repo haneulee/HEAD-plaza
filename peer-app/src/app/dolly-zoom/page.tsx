@@ -288,7 +288,7 @@ const DollyZoom = () => {
             </h3>
             <ol className="text-gray-300 space-y-2 list-decimal list-inside">
               {/* <li>Position your subject in front of a deep background</li> */}
-              <li>Start recording on the camera app</li>
+              <li>Start recording on the phone camera</li>
               <li>
                 Move the camera towards or away from the subject while
                 simultaneously zooming in or out
@@ -306,23 +306,29 @@ const DollyZoom = () => {
               {isStreaming
                 ? "Camera Preview"
                 : receivedVideoUrl
-                ? "Scan to view your Arc Shot"
-                : " Scan to view your Arc Shot"}
+                ? "Scan to view your Dolly Zoom Shot"
+                : "Ready to start!"}
             </h2>
             {isStreaming ? (
-              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
-                <video
-                  className="rounded-lg"
-                  style={{
-                    transform: "rotate(-90deg)",
-                    width: "80%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
-                    objectFit: "cover",
-                  }}
-                  playsInline
-                  ref={callingVideoRef}
-                  autoPlay
-                  muted
-                />
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center overflow-hidden">
+                <div className="w-full h-full relative">
+                  <video
+                    className="rounded-lg absolute"
+                    style={{
+                      transform: "rotate(-90deg) translate(-50%, -50%)",
+                      transformOrigin: "0 0",
+                      width: "200%" /* 177.78%에서 200%로 증가 */,
+                      height: "auto",
+                      top: "50%",
+                      left: "50%",
+                      objectFit: "cover",
+                    }}
+                    playsInline
+                    ref={callingVideoRef}
+                    autoPlay
+                    muted
+                  />
+                </div>
               </div>
             ) : receivedVideoUrl ? (
               <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
@@ -344,10 +350,9 @@ const DollyZoom = () => {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
-                <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
                 <p className="text-gray-300">
                   1. Follow the instructions on the left and start recording
-                  from the camera app.
+                  from the phone camera.
                   <br />
                   2. Your creation will appear here once complete.
                 </p>

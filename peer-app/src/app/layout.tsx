@@ -6,8 +6,8 @@ import type { Metadata } from "next";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Camera App",
-  description: "Camera app for special effects",
+  title: "Action! 🎬",
+  description: "Cinematic techniques for your videos",
   viewport: {
     width: "device-width",
     initialScale: 1,
