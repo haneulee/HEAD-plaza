@@ -5,8 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Peer from "peerjs";
 
-const PEER_ID = "arc-shot-camera";
-
 const ArcShotCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -24,6 +22,11 @@ const ArcShotCamera = () => {
   const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
+
+  // 고정 ID 대신 랜덤 ID 생성 함수 추가
+  const generateUniqueId = () => {
+    return `${Math.random().toString(36).substr(2, 9)}`;
+  };
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -145,7 +148,7 @@ const ArcShotCamera = () => {
   const getViewerIdFromUrl = () => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get("viewerId");
+      const id = urlParams.get("id");
       return id || "arc-shot-viewer"; // 기본값 제공
     }
     return "arc-shot-viewer"; // 서버 사이드에서는 기본값 반환
@@ -521,7 +524,8 @@ const ArcShotCamera = () => {
   }, [myUniqueId]);
 
   useEffect(() => {
-    setMyUniqueId(PEER_ID);
+    const newId = generateUniqueId();
+    setMyUniqueId(newId);
     // URL에서 viewerId 가져오기
     const urlViewerId = getViewerIdFromUrl();
     setViewerId(urlViewerId);

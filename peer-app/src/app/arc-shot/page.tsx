@@ -267,34 +267,6 @@ const ArcShot = () => {
           creating a dramatic, immersive effect that can emphasize emotional
           moments or reveal important visual information to the audience.
         </p>
-        {/* 카메라 앱 링크 추가 */}
-        {/* {myUniqueId && (
-          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2">Camera App Link:</h3>
-            <div className="flex items-center space-x-4">
-              <input
-                type="text"
-                readOnly
-                value={`${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`}
-                className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`
-                  );
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-              >
-                Copy
-              </button>
-            </div>
-            <p className="text-gray-400 mt-2 text-sm">
-              Share this link with the camera operator to connect to this
-              viewer.
-            </p>
-          </div>
-        )} */}
       </div>
 
       {/* Videos section */}
@@ -376,11 +348,11 @@ const ArcShot = () => {
           ) : (
             <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
               <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
-              <p className="text-gray-300 text-center">
-                Follow the instructions on the left and start recording from the
-                camera app.
+              <p className="text-gray-300">
+                1. Follow the instructions on the left and start recording from
+                the camera app.
                 <br />
-                Your creation will appear here once complete.
+                2. Your creation will appear here once complete.
               </p>
             </div>
           )}
