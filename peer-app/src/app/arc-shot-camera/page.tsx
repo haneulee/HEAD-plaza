@@ -538,8 +538,18 @@ const ArcShotCamera = () => {
   }, [recordingTimer]);
 
   return (
-    <div className="relative h-[calc(100dvh-56px)]">
-      <video playsInline ref={myVideoRef} autoPlay muted />
+    <div className="relative h-[100dvh] w-[100dvw]">
+      <video
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+        playsInline
+        ref={myVideoRef}
+        autoPlay
+        muted
+      />
       <button
         onClick={isStreaming ? handleCut : handleCall}
         disabled={isProcessing}

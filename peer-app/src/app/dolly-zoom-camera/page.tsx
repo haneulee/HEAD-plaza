@@ -21,7 +21,6 @@ const DollyZoomCamera = () => {
   const [connectionStatus, setConnectionStatus] =
     useState<string>("연결 중...");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
@@ -100,7 +99,6 @@ const DollyZoomCamera = () => {
             break;
         }
       } else {
-        throw err;
       }
       throw err;
     }
@@ -149,7 +147,7 @@ const DollyZoomCamera = () => {
   const getViewerIdFromUrl = () => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
-      const id = urlParams.get("viewerId");
+      const id = urlParams.get("id");
       return id || "dolly-zoom-viewer"; // 기본값 제공
     }
     return "dolly-zoom-viewer"; // 서버 사이드에서는 기본값 반환
@@ -184,7 +182,7 @@ const DollyZoomCamera = () => {
     try {
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType,
-        videoBitsPerSecond: 800000, // 1 Mbps로 제한
+        videoBitsPerSecond: 800000, // 800 Kbps로 더 낮게 제한 (파일 크기 감소)
       });
 
       // 5초마다 데이터 청크 생성
@@ -199,7 +197,7 @@ const DollyZoomCamera = () => {
 
       mediaRecorder.start(5000); // 5초마다 청크 생성
       mediaRecorderRef.current = mediaRecorder;
-      addDebugLog("녹화가 시작되었습니다. (비트레이트: 1Mbps)");
+      addDebugLog("녹화가 시작되었습니다. (비트레이트: 800Kbps)");
 
       // 1분 타이머 설정
       const timer = window.setInterval(() => {
@@ -418,6 +416,8 @@ const DollyZoomCamera = () => {
       // 기본 최적화 옵션만 사용
       formData.append("quality", "auto:low");
 
+      // eager 및 angle 파라미터 제거 (unsigned 업로드에서는 사용 불가)
+
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
         {
@@ -444,6 +444,7 @@ const DollyZoomCamera = () => {
       );
 
       addDebugLog(`변환된 URL: ${transformedUrl}`);
+
       return transformedUrl;
     } catch (error) {
       addDebugLog(`Cloudinary 업로드 오류: ${error}`);
@@ -524,7 +525,6 @@ const DollyZoomCamera = () => {
   useEffect(() => {
     const newId = generateUniqueId();
     setMyUniqueId(newId);
-
     // URL에서 viewerId 가져오기
     const urlViewerId = getViewerIdFromUrl();
     setViewerId(urlViewerId);
@@ -594,18 +594,14 @@ const DollyZoomCamera = () => {
   }, []);
 
   return (
-    <div
-      id="viewport-container"
-      className="relative h-screen w-screen overflow-hidden"
-    >
+    <div id="viewport-container" className="relative h-[100dvh] w-[100dvw]">
       <video
-        className="w-full h-full object-cover transition-transform duration-300"
-        playsInline
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",
+          objectFit: "cover",
         }}
+        playsInline
         ref={myVideoRef}
         autoPlay
         muted
@@ -639,6 +635,7 @@ const DollyZoomCamera = () => {
         <div>연결 상태: {connectionStatus}</div>
         <div>통화 상태: {callStatus}</div>
         <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
+        <div>뷰어 ID: {viewerId}</div>
         <div className="h-px bg-white my-2" />
         <div className="text-xs">
           {debugLogs.map((log, index) => (
