@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { InfoPopup } from "@/components/InfoPopup";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
+import { generateUniqueId } from "@/utils/generateUniqueId";
 
 const ArcShot = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
@@ -15,11 +16,6 @@ const ArcShot = () => {
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
-
-  // 고정 ID 대신 랜덤 ID 생성 함수 추가
-  const generateUniqueId = () => {
-    return `${Math.random().toString(36).substr(2, 9)}`;
-  };
 
   // URL에 ID 파라미터 추가하는 함수
   const updateUrlWithId = (id: string) => {
@@ -306,56 +302,65 @@ const ArcShot = () => {
 
         {/* Right video */}
         <div className="w-1/2 pl-4 flex flex-col">
-          {isStreaming ? (
-            <>
-              <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
-              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
-                <video
-                  className="rounded-lg"
-                  style={{
-                    transform: "rotate(-90deg)",
-                    width: "80%", // 16:9 비율의 높이를 너비로 사용 (9/16 = 0.5625)
-                    objectFit: "cover",
-                  }}
-                  playsInline
-                  ref={callingVideoRef}
-                  autoPlay
-                  muted
-                />
+          <>
+            <h2 className="text-xl font-semibold mb-2">
+              {isStreaming
+                ? "Camera Preview"
+                : receivedVideoUrl
+                ? "Scan to view your Arc Shot"
+                : " Scan to view your Arc Shot"}
+            </h2>
+            {isStreaming ? (
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center overflow-hidden">
+                <div className="w-full h-full relative">
+                  <video
+                    className="rounded-lg absolute"
+                    style={{
+                      transform: "rotate(-90deg) translate(-50%, -50%)",
+                      transformOrigin: "0 0",
+                      width: "177.78%" /* 16:9 비율에서 회전 시 필요한 너비 */,
+                      height: "auto",
+                      top: "50%",
+                      left: "50%",
+                      objectFit: "cover",
+                    }}
+                    playsInline
+                    ref={callingVideoRef}
+                    autoPlay
+                    muted
+                  />
+                </div>
               </div>
-            </>
-          ) : receivedVideoUrl ? (
-            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
-              <h2 className="text-xl font-semibold mb-4">
-                Scan to view your Arc Shot
-              </h2>
-              <div className="bg-white p-4 rounded-lg">
-                <QRCodeSVG value={receivedVideoUrl} size={256} level="H" />
+            ) : receivedVideoUrl ? (
+              <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+                <div className="bg-white p-4 rounded-lg">
+                  <QRCodeSVG value={receivedVideoUrl} size={256} level="H" />
+                </div>
+                <p className="mt-4 text-gray-300">
+                  Or click{" "}
+                  <a
+                    href={receivedVideoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    here
+                  </a>{" "}
+                  to view directly
+                </p>
               </div>
-              <p className="mt-4 text-gray-300">
-                Or click{" "}
-                <a
-                  href={receivedVideoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline"
-                >
-                  here
-                </a>{" "}
-                to view directly
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
-              <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
-              <p className="text-gray-300">
-                1. Follow the instructions on the left and start recording from
-                the camera app.
-                <br />
-                2. Your creation will appear here once complete.
-              </p>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+                <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
+                <p className="text-gray-300">
+                  1. Follow the instructions on the left and start recording
+                  from the camera app.
+                  <br />
+                  2. Your creation will appear here once complete.
+                </p>
+              </div>
+            )}
+          </>
         </div>
       </div>
     </div>

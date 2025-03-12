@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { InfoPopup } from "@/components/InfoPopup";
 import Peer from "peerjs";
 import { QRCodeSVG } from "qrcode.react";
+import { generateUniqueId } from "@/utils/generateUniqueId";
 
 const ZeroGravityShot = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
@@ -15,11 +16,6 @@ const ZeroGravityShot = () => {
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
-
-  // 고정 ID 대신 랜덤 ID 생성 함수 추가
-  const generateUniqueId = () => {
-    return `${Math.random().toString(36).substr(2, 9)}`;
-  };
 
   // URL에 ID 파라미터 추가하는 함수
   const updateUrlWithId = (id: string) => {
@@ -267,35 +263,6 @@ const ZeroGravityShot = () => {
           and action films, can create a disorienting yet captivating effect
           that simulates the absence of gravity.
         </p>
-
-        {/* 카메라 앱 링크 추가 */}
-        {/* {myUniqueId && (
-          <div className="mt-4 p-4 bg-gray-800 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2">Camera App Link:</h3>
-            <div className="flex items-center space-x-4">
-              <input
-                type="text"
-                readOnly
-                value={`${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`}
-                className="flex-1 bg-gray-700 text-white p-2 rounded-lg"
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(
-                    `${window.location.origin}/arc-shot-camera?viewerId=${myUniqueId}`
-                  );
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-              >
-                Copy
-              </button>
-            </div>
-            <p className="text-gray-400 mt-2 text-sm">
-              Share this link with the camera operator to connect to this
-              viewer.
-            </p>
-          </div>
-        )} */}
       </div>
 
       {/* Videos section */}
@@ -332,9 +299,15 @@ const ZeroGravityShot = () => {
 
         {/* Right video */}
         <div className="w-1/2 pl-4 flex flex-col">
-          {isStreaming ? (
-            <>
-              <h2 className="text-xl font-semibold mb-2">Camera Preview</h2>
+          <>
+            <h2 className="text-xl font-semibold mb-2">
+              {isStreaming
+                ? "Camera Preview"
+                : receivedVideoUrl
+                ? "Scan to view your Arc Shot"
+                : " Scan to view your Arc Shot"}
+            </h2>
+            {isStreaming ? (
               <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
                 <video
                   className="rounded-lg"
@@ -349,39 +322,36 @@ const ZeroGravityShot = () => {
                   muted
                 />
               </div>
-            </>
-          ) : receivedVideoUrl ? (
-            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
-              <h2 className="text-xl font-semibold mb-4">
-                Scan to view your Zero Gravity Shot
-              </h2>
-              <div className="bg-white p-4 rounded-lg">
-                <QRCodeSVG value={receivedVideoUrl} size={256} level="H" />
+            ) : receivedVideoUrl ? (
+              <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+                <div className="bg-white p-4 rounded-lg">
+                  <QRCodeSVG value={receivedVideoUrl} size={256} level="H" />
+                </div>
+                <p className="mt-4 text-gray-300">
+                  Or click{" "}
+                  <a
+                    href={receivedVideoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    here
+                  </a>{" "}
+                  to view directly
+                </p>
               </div>
-              <p className="mt-4 text-gray-300">
-                Or click{" "}
-                <a
-                  href={receivedVideoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline"
-                >
-                  here
-                </a>{" "}
-                to view directly
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
-              <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
-              <p className="text-gray-300 text-center">
-                Follow the instructions on the left and start recording from the
-                camera app.
-                <br />
-                Your creation will appear here once complete.
-              </p>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 bg-gray-900 rounded-lg border border-gray-700">
+                <h2 className="text-xl font-semibold mb-4">Ready to start!</h2>
+                <p className="text-gray-300">
+                  1. Follow the instructions on the left and start recording
+                  from the camera app.
+                  <br />
+                  2. Your creation will appear here once complete.
+                </p>
+              </div>
+            )}
+          </>
         </div>
       </div>
     </div>
