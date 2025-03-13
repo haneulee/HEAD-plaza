@@ -581,11 +581,11 @@ const DollyZoomCamera = () => {
     if (!isDraggingRef.current || touchStartYRef.current === null) return;
 
     const currentY = e.touches[0].clientY;
-    const deltaY = touchStartYRef.current - currentY;
+    const deltaY = touchStartYRef.current - currentY; // 부호 다시 변경 (위로 드래그 = 양수)
 
-    // 드래그 거리에 따라 줌 레벨 조정 (위로 드래그하면 줌인, 아래로 드래그하면 줌아웃)
+    // 드래그 방향: 위로 드래그하면 줌인(확대), 아래로 드래그하면 줌아웃(축소)
     setZoomLevel((prev) => {
-      const newZoom = Math.max(1, Math.min(5, prev + deltaY * 0.01));
+      const newZoom = Math.max(1, Math.min(10, prev + deltaY * 0.03));
       updateZoom(newZoom); // 실시간으로 줌 적용
       return newZoom;
     });
@@ -613,7 +613,7 @@ const DollyZoomCamera = () => {
           if (capabilities.zoom) {
             // 줌 범위를 capabilities에 맞게 조정
             const minZoom = capabilities.zoom.min || 1;
-            const maxZoom = capabilities.zoom.max || 5;
+            const maxZoom = capabilities.zoom.max || 10; // 최대 줌 범위 확장
             const normalizedZoom = Math.max(
               minZoom,
               Math.min(maxZoom, zoomLevel)
@@ -627,11 +627,10 @@ const DollyZoomCamera = () => {
           } else {
             // 줌 기능이 없는 경우 CSS 스케일링으로 대체
             if (myVideoRef.current) {
+              // CSS 스케일은 1부터 시작 (원본 크기)
               const scale = zoomLevel;
               myVideoRef.current.style.transform = `scale(${scale})`;
-              addDebugLog(
-                `Hardware zoom not supported, using CSS scale: ${scale}`
-              );
+              addDebugLog(`CSS scale: ${scale}`);
             }
           }
         }
