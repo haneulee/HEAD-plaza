@@ -625,7 +625,14 @@ const DollyZoomCamera = () => {
 
             addDebugLog(`Zoom level set to: ${normalizedZoom}`);
           } else {
-            addDebugLog("This device does not support zoom");
+            // 줌 기능이 없는 경우 CSS 스케일링으로 대체
+            if (myVideoRef.current) {
+              const scale = zoomLevel;
+              myVideoRef.current.style.transform = `scale(${scale})`;
+              addDebugLog(
+                `Hardware zoom not supported, using CSS scale: ${scale}`
+              );
+            }
           }
         }
       }
@@ -660,6 +667,7 @@ const DollyZoomCamera = () => {
           height: "100%",
           objectFit: "cover",
           touchAction: "none",
+          transformOrigin: "center", // 중앙에서 확대/축소
         }}
         playsInline
         ref={myVideoRef}
