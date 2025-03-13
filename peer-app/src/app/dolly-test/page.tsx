@@ -374,7 +374,7 @@ const DollyTest = () => {
                 className="rounded-lg w-full h-full object-cover"
                 style={{
                   transform: `scale(${zoomLevel})`,
-                  transition: "transform 100ms ease-out",
+                  transition: "transform 10ms ease-out",
                 }}
               />
             </div>
