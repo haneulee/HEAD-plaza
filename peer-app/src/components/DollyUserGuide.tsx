@@ -10,7 +10,7 @@ export const DollyUserGuide = ({ onNext }: Props) => {
         autoPlay
         muted
         playsInline
-        src="/sample/dolly zoom - jaws.mov" // user guide video
+        src="/guide/dolly-user-guide.mp4" // user guide video
       />
     </div>
   );

@@ -13,19 +13,66 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const [countdown, setCountdown] = useState(5);
   const countIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isUploadingRef = useRef<boolean>(false);
+  const previousMouseXRef = useRef<number | null>(null);
+  const TRIGGER_ZONE = 20; // 카운트다운 트리거 영역 설정
+  const [zoomScale, setZoomScale] = useState(1.5);
+  const MAX_ZOOM = 3.5; // 최대 줌 스케일 (왼쪽)
+  const MIN_ZOOM = 1.5; // 최소 줌 스케일 (오른쪽)
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvasSize] = useState({ width: 1200, height: 900 }); // 4:3 비율 (1200 x 900)
 
   // 웹캠 설정을 처음 한 번만 실행
   useEffect(() => {
     let stream: MediaStream;
+    let canvasStream: MediaStream;
 
     const setupWebcam = async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (webcamRef.current) {
+        if (webcamRef.current && canvasRef.current) {
           webcamRef.current.srcObject = stream;
 
+          // Canvas 스트림 설정
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext("2d");
+
+          // Canvas 크기 설정
+          canvas.width = canvasSize.width;
+          canvas.height = canvasSize.height;
+
+          // Canvas에 줌 효과를 적용하여 그리기
+          const drawFrame = () => {
+            if (webcamRef.current && ctx) {
+              ctx.save();
+
+              // Canvas 초기화
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+              // 중앙 기준 줌 효과 적용
+              ctx.translate(canvas.width / 2, canvas.height / 2);
+              ctx.scale(zoomScale, zoomScale);
+              ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+              // 비디오 프레임 그리기
+              ctx.drawImage(
+                webcamRef.current,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
+
+              ctx.restore();
+            }
+            requestAnimationFrame(drawFrame);
+          };
+          drawFrame();
+
+          // Canvas 스트림 생성
+          canvasStream = canvas.captureStream(30); // 30fps
+
           // 녹화 설정
-          const mediaRecorder = new MediaRecorder(stream);
+          const mediaRecorder = new MediaRecorder(canvasStream);
           const chunks: BlobPart[] = [];
 
           mediaRecorder.ondataavailable = (e) => {
@@ -81,6 +128,9 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
+      if (canvasStream) {
+        canvasStream.getTracks().forEach((track) => track.stop());
+      }
       if (countIntervalRef.current) {
         clearInterval(countIntervalRef.current);
       }
@@ -90,14 +140,25 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   // 마우스 이벤트 핸들러
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (e.clientX <= 10 && !showOverlay) {
-        // 화면 왼쪽 가장자리에서 마우스를 움직이면 카운트다운 시작
+      const currentX = e.clientX;
+      const windowWidth = window.innerWidth;
+
+      // X 위치를 0-1 사이의 값으로 정규화하고 뒤집기 (오른쪽이 최소값)
+      const normalizedX = 1 - currentX / windowWidth;
+
+      // 정규화된 값을 MIN_ZOOM에서 MAX_ZOOM 사이로 매핑
+      const newScale = MIN_ZOOM + normalizedX * (MAX_ZOOM - MIN_ZOOM);
+      setZoomScale(newScale);
+
+      // 트리거 영역에서 카운트다운 시작
+      if (currentX <= TRIGGER_ZONE && !showOverlay) {
         setShowOverlay(true);
         startCountdownAndRecording();
-      } else if (showOverlay) {
-        // 카운트다운 중 마우스 움직임이 있으면 카운트다운 취소하고 녹화 계속
+      } else if (currentX > TRIGGER_ZONE && showOverlay) {
         cancelCountdown();
       }
+
+      previousMouseXRef.current = currentX;
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -157,6 +218,35 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
     }
   };
 
+  // zoomScale이 변경될 때마다 캔버스를 다시 그리도록 수정
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const video = webcamRef.current;
+    const ctx = canvas?.getContext("2d");
+
+    if (!canvas || !video || !ctx) return;
+
+    const drawFrame = () => {
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 중앙 기준 줌 효과 적용
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.scale(zoomScale, zoomScale);
+      ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      requestAnimationFrame(drawFrame);
+    };
+
+    drawFrame();
+
+    return () => {
+      // cleanup
+    };
+  }, [zoomScale]); // zoomScale을 의존성 배열에 추가
+
   return (
     <div className="flex flex-col h-screen">
       {/* 프로그레스 바 */}
@@ -168,9 +258,9 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       </div>
 
       {/* 샘플 비디오와 웹캠 컨테이너 */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4">
+      <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
         {/* 상단 샘플 비디오 */}
-        <div className="w-1/3">
+        <div className="w-1/4">
           <video
             ref={videoRef}
             className="w-full h-full object-cover rounded-lg"
@@ -183,11 +273,17 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
           />
         </div>
 
-        {/* 하단 웹캠 영상 */}
-        <div className="w-3/5 flex-1">
+        {/* 하단 웹캠 영상 (캔버스로 대체) */}
+        <div className="overflow-hidden flex justify-center">
+          <canvas
+            ref={canvasRef}
+            className="rounded-lg"
+            width={canvasSize.width}
+            height={canvasSize.height}
+          />
           <video
             ref={webcamRef}
-            className="w-full h-full object-cover rounded-lg"
+            className="w-0 h-0 opacity-0"
             autoPlay
             playsInline
             muted

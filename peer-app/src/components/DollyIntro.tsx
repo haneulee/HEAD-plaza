@@ -17,7 +17,7 @@ export const DollyIntro = ({ onNext }: Props) => {
         }}
       />
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <h1 className="text-8xl font-bold mb-4">Action! 🎬</h1>
+        <h1 className="text-8xl font-bold mb-4">Action!</h1>
         <p className="text-2xl mb-2">Make your dolly zoom</p>
         <p className="text-xl">Move the camera to start</p>
       </div>

@@ -45,7 +45,7 @@ export const DollyEnding = ({ recordedVideoUrl, onReset }: Props) => {
   return (
     <div className="flex flex-col h-screen bg-black text-white p-8">
       {/* 제목 */}
-      <h1 className="text-4xl text-center mb-8">Here is your Dolly Zoom 🎬</h1>
+      <h1 className="text-4xl text-center mb-8">Here is your Dolly Zoom</h1>
 
       {/* 비디오 컨테이너 */}
       <div className="flex-1 flex justify-between gap-8 mb-8">
@@ -78,8 +78,8 @@ export const DollyEnding = ({ recordedVideoUrl, onReset }: Props) => {
         </div>
       </div>
 
-      {/* QR 코드와 다운로드 텍스트 - 화면 하단 왼쪽에 작게 배치 */}
-      <div className="flex items-center gap-6 mb-8">
+      {/* QR 코드와 다운로드 텍스트 - 화면 하단 왼쪽에 배치하고 여백 추가 */}
+      <div className="flex items-center gap-6 mb-16">
         <QRCodeSVG
           value={recordedVideoUrl}
           size={100}
