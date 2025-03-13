@@ -23,6 +23,9 @@ const DollyZoomCamera = () => {
   const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const touchStartYRef = useRef<number | null>(null);
+  const isDraggingRef = useRef<boolean>(false);
 
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
@@ -50,15 +53,31 @@ const DollyZoomCamera = () => {
         return Promise.reject(new Error("mediaDevices not supported"));
       }
 
-      // 모바일에서는 더 낮은 해상도로 시작하는 것이 좋음
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: 1280 }, // 더 높은 해상도 설정
+          height: { ideal: 720 },
           facingMode: "environment",
-        },
+          zoom: 1, // true 대신 숫자 값(1)으로 변경
+        } as MediaTrackConstraints,
         audio: true,
       });
+
+      // 줌 기능 지원 확인 및 초기 설정
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && "getCapabilities" in videoTrack) {
+        const capabilities =
+          videoTrack.getCapabilities() as MediaTrackCapabilities;
+        if (capabilities.zoom) {
+          addDebugLog(
+            `Zoom supported: ${capabilities.zoom.min} - ${capabilities.zoom.max}`
+          );
+          // 초기 줌 레벨 설정
+          await videoTrack.applyConstraints({
+            advanced: [{ zoom: zoomLevel } as MediaTrackConstraintSet],
+          });
+        }
+      }
 
       return stream;
     } catch (err) {
@@ -291,8 +310,20 @@ const DollyZoomCamera = () => {
     setCallStatus("미디어 스트림 요청 중...");
 
     safeGetUserMedia()
-      .then((stream) => {
+      .then(async (stream) => {
         addDebugLog("미디어 스트림 획득 성공");
+
+        // 초기 줌 레벨 설정
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack && "getCapabilities" in videoTrack) {
+          const capabilities =
+            videoTrack.getCapabilities() as MediaTrackCapabilities;
+          if (capabilities.zoom) {
+            await videoTrack.applyConstraints({
+              advanced: [{ zoom: zoomLevel } as MediaTrackConstraintSet],
+            });
+          }
+        }
 
         if (myVideoRef.current) {
           myVideoRef.current.srcObject = stream;
@@ -537,6 +568,90 @@ const DollyZoomCamera = () => {
     };
   }, [recordingTimer]);
 
+  // 터치 시작 처리
+  const handleTouchStart = (e: TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartYRef.current = e.touches[0].clientY;
+      isDraggingRef.current = true;
+    }
+  };
+
+  // 터치 이동 처리
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!isDraggingRef.current || touchStartYRef.current === null) return;
+
+    const currentY = e.touches[0].clientY;
+    const deltaY = touchStartYRef.current - currentY;
+
+    // 드래그 거리에 따라 줌 레벨 조정 (위로 드래그하면 줌인, 아래로 드래그하면 줌아웃)
+    setZoomLevel((prev) => {
+      const newZoom = Math.max(1, Math.min(5, prev + deltaY * 0.01));
+      updateZoom(newZoom); // 실시간으로 줌 적용
+      return newZoom;
+    });
+
+    touchStartYRef.current = currentY;
+  };
+
+  // 터치 종료 처리
+  const handleTouchEnd = () => {
+    touchStartYRef.current = null;
+    isDraggingRef.current = false;
+  };
+
+  // 줌 레벨 업데이트 함수
+  const updateZoom = async (zoomLevel: number) => {
+    try {
+      if (myVideoRef.current?.srcObject) {
+        const stream = myVideoRef.current.srcObject as MediaStream;
+        const videoTrack = stream.getVideoTracks()[0];
+
+        if (videoTrack && "getCapabilities" in videoTrack) {
+          const capabilities =
+            videoTrack.getCapabilities() as MediaTrackCapabilities;
+
+          if (capabilities.zoom) {
+            // 줌 범위를 capabilities에 맞게 조정
+            const minZoom = capabilities.zoom.min || 1;
+            const maxZoom = capabilities.zoom.max || 5;
+            const normalizedZoom = Math.max(
+              minZoom,
+              Math.min(maxZoom, zoomLevel)
+            );
+
+            await videoTrack.applyConstraints({
+              advanced: [{ zoom: normalizedZoom } as MediaTrackConstraintSet],
+            });
+
+            addDebugLog(`Zoom level set to: ${normalizedZoom}`);
+          } else {
+            addDebugLog("This device does not support zoom");
+          }
+        }
+      }
+    } catch (err) {
+      addDebugLog(`Failed to apply zoom: ${err}`);
+    }
+  };
+
+  // 터치 이벤트 리스너 설정
+  useEffect(() => {
+    const videoElement = myVideoRef.current;
+    if (videoElement) {
+      videoElement.addEventListener("touchstart", handleTouchStart);
+      videoElement.addEventListener("touchmove", handleTouchMove);
+      videoElement.addEventListener("touchend", handleTouchEnd);
+      videoElement.addEventListener("touchcancel", handleTouchEnd);
+
+      return () => {
+        videoElement.removeEventListener("touchstart", handleTouchStart);
+        videoElement.removeEventListener("touchmove", handleTouchMove);
+        videoElement.removeEventListener("touchend", handleTouchEnd);
+        videoElement.removeEventListener("touchcancel", handleTouchEnd);
+      };
+    }
+  }, []);
+
   return (
     <div className="relative h-[100dvh] w-[100dvw]">
       <video
@@ -544,12 +659,17 @@ const DollyZoomCamera = () => {
           width: "100%",
           height: "100%",
           objectFit: "cover",
+          touchAction: "none",
         }}
         playsInline
         ref={myVideoRef}
         autoPlay
         muted
       />
+      {/* 현재 줌 레벨 표시 (선택사항) */}
+      <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded">
+        {Math.round(zoomLevel * 100) / 100}x
+      </div>
       <button
         onClick={isStreaming ? handleCut : handleCall}
         disabled={isProcessing}
@@ -575,7 +695,7 @@ const DollyZoomCamera = () => {
       )}
 
       {/* 디버깅 정보와 로그를 함께 표시 */}
-      {/* <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
+      <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
         <div>연결 상태: {connectionStatus}</div>
         <div>통화 상태: {callStatus}</div>
         <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
@@ -591,7 +711,7 @@ const DollyZoomCamera = () => {
             </div>
           ))}
         </div>
-      </div> */}
+      </div>
     </div>
   );
 };
