@@ -337,12 +337,16 @@ const DollyZoomCamera = () => {
     canvas.width = width;
     canvas.height = height;
 
-    // 비디오 요소에 원본 스트림 연결
-    myVideoRef.current.srcObject = videoStream;
+    // 비디오 요소에 원본 스트림 연결 (숨겨진 비디오 요소 사용)
+    const hiddenVideo = document.createElement("video");
+    hiddenVideo.autoplay = true;
+    hiddenVideo.playsInline = true;
+    hiddenVideo.muted = true;
+    hiddenVideo.srcObject = videoStream;
 
     // 캔버스에 비디오 그리기 함수
     const drawVideoWithZoom = () => {
-      if (!ctx || !myVideoRef.current) return;
+      if (!ctx || !hiddenVideo) return;
 
       // 캔버스 지우기
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -356,7 +360,7 @@ const DollyZoomCamera = () => {
 
       // 비디오를 캔버스에 그리기 (줌 적용)
       ctx.drawImage(
-        myVideoRef.current,
+        hiddenVideo,
         centerX,
         centerY,
         scaledWidth,
@@ -371,8 +375,11 @@ const DollyZoomCamera = () => {
       animationFrameRef.current = requestAnimationFrame(drawVideoWithZoom);
     };
 
-    // 애니메이션 시작
-    drawVideoWithZoom();
+    // 비디오가 로드되면 애니메이션 시작
+    hiddenVideo.onloadedmetadata = () => {
+      drawVideoWithZoom();
+      addDebugLog("비디오 로드됨, 캔버스 그리기 시작");
+    };
 
     // 캔버스에서 스트림 생성
     try {
@@ -383,6 +390,12 @@ const DollyZoomCamera = () => {
       audioTracks.forEach((track) => {
         canvasStream.addTrack(track);
       });
+
+      // 화면에 보이는 비디오 요소에 캔버스 스트림 연결
+      if (myVideoRef.current) {
+        myVideoRef.current.srcObject = canvasStream;
+        addDebugLog("비디오 요소에 캔버스 스트림 연결됨");
+      }
 
       canvasStreamRef.current = canvasStream;
       addDebugLog("캔버스 스트림 생성 성공");
@@ -426,6 +439,7 @@ const DollyZoomCamera = () => {
           proceedWithCall(stream);
         } else {
           addDebugLog("캔버스 스트림 생성 성공, 줌 효과 적용됨");
+          // 캔버스 스트림으로 진행 (이미 비디오 요소에 연결됨)
           proceedWithCall(canvasStream);
         }
       })
@@ -746,10 +760,22 @@ const DollyZoomCamera = () => {
 
   return (
     <div className="relative h-[100dvh] w-[100dvw] overflow-hidden">
-      {/* 숨겨진 캔버스 */}
-      <canvas ref={canvasRef} style={{ display: "none" }} />
+      {/* 숨겨진 캔버스 (디버깅을 위해 작게 표시) */}
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "10px",
+          width: "80px",
+          height: "60px",
+          zIndex: 100,
+          border: "1px solid white",
+          display: "none", // 디버깅 시 'block'으로 변경
+        }}
+      />
 
-      {/* 비디오 요소 (미리보기용) */}
+      {/* 비디오 요소 (캔버스 스트림 표시) */}
       <video
         style={{
           width: "100%",

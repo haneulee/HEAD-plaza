@@ -249,11 +249,10 @@ const DollyZoom = () => {
   // 비디오 스타일 업데이트
   const getVideoStyle = () => {
     return {
-      // width: "56%",
+      width: "100%", // 전체 너비 사용
+      height: "100%", // 전체 높이 사용
       transform: `rotate(-90deg) scale(${remoteZoomLevel})`,
       objectFit: "cover" as const,
-      left: "23%",
-      top: "-40%",
       transformOrigin: "center",
     };
   };
@@ -332,7 +331,7 @@ const DollyZoom = () => {
               <div className="aspect-video flex-shrink-0 relative flex items-center justify-center overflow-hidden">
                 <div className="w-full h-full relative">
                   <video
-                    className="rounded-lg absolute"
+                    className="rounded-lg absolute inset-0"
                     style={getVideoStyle()}
                     playsInline
                     ref={callingVideoRef}
