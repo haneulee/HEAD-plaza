@@ -23,7 +23,7 @@ const DollyZoomCamera = () => {
   const [recordingTimer, setRecordingTimer] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const MAX_RECORDING_DURATION = 60; // 최대 녹화 시간 (초)
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomLevel, setZoomLevel] = useState<number>(2);
   const touchStartYRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
 
@@ -55,10 +55,10 @@ const DollyZoomCamera = () => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280 }, // 더 높은 해상도 설정
+          width: { ideal: 1280 },
           height: { ideal: 720 },
           facingMode: "environment",
-          zoom: 1, // true 대신 숫자 값(1)으로 변경
+          zoom: 2, // 초기 줌 레벨을 2로 설정
         } as MediaTrackConstraints,
         audio: true,
       });
@@ -581,13 +581,13 @@ const DollyZoomCamera = () => {
     if (!isDraggingRef.current || touchStartYRef.current === null) return;
 
     const currentY = e.touches[0].clientY;
-    const deltaY = currentY - touchStartYRef.current; // 아래로 드래그 = 양수
+    const deltaY = currentY - touchStartYRef.current;
 
     // 드래그 방향: 아래로 드래그하면 줌인(확대), 위로 드래그하면 줌아웃(축소)
-    // 감도를 0.03에서 0.1로 크게 증가
     setZoomLevel((prev) => {
-      const newZoom = Math.max(1, Math.min(10, prev + deltaY * 0.1));
-      updateZoom(newZoom); // 실시간으로 줌 적용
+      // 최소값을 0.5로 설정하여 더 축소 가능하도록 함
+      const newZoom = Math.max(0.5, Math.min(10, prev + deltaY * 0.1));
+      updateZoom(newZoom);
       return newZoom;
     });
 
