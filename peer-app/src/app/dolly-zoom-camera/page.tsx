@@ -2,19 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { FaceDetector } from "@/utils/face-detector";
 import Image from "next/image";
 import Peer from "peerjs";
-import { Viewport } from "./viewport";
 import { generateUniqueId } from "@/utils/generateUniqueId";
 
 const DollyZoomCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const viewportRef = useRef<Viewport | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const processedStreamRef = useRef<MediaStream | null>(null);
 
   const [peerInstance, setPeerInstance] = useState<Peer | null>(null);
   const [myUniqueId, setMyUniqueId] = useState<string>("");
@@ -304,52 +299,38 @@ const DollyZoomCamera = () => {
           addDebugLog("비디오 요소에 스트림 연결됨");
         }
 
-        // Canvas 스트림 생성
-        const canvasStream = createCanvasStream();
-        if (canvasStream) {
-          // 오디오 트랙 추가
-          stream.getAudioTracks().forEach((track) => {
-            canvasStream.addTrack(track);
-          });
-          processedStreamRef.current = canvasStream;
+        const call = peerInstance.call(viewerId, stream);
+        addDebugLog("피어 호출 시도: " + viewerId);
 
-          // 처리된 스트림으로 통화 시작
-          const call = peerInstance.call(viewerId, canvasStream);
-          addDebugLog("피어 호출 시도: " + viewerId);
-
-          if (!call) {
-            addDebugLog("통화 연결 실패");
-            setCallStatus(
-              "통화 연결에 실패했습니다. 상대방 ID를 확인해주세요."
-            );
-            return;
-          }
-
-          setIsStreaming(true);
-          setCallStatus("스트리밍 시작됨");
-          addDebugLog("스트리밍 상태 true로 설정");
-
-          // 여기를 수정: 원본 stream 대신 canvasStream을 녹화
-          startRecording(canvasStream);
-          addDebugLog("줌 효과가 적용된 캔버스 스트림 녹화 시작됨");
-
-          call.on("stream", (userVideoStream) => {
-            addDebugLog("상대방 스트림 수신 성공");
-            setCallStatus("상대방 스트림 연결됨");
-          });
-
-          call.on("error", (err) => {
-            addDebugLog(`통화 오류: ${err.toString()}`);
-            setCallStatus(`통화 오류: ${err.toString()}`);
-            setIsStreaming(false);
-          });
-
-          call.on("close", () => {
-            addDebugLog("통화 종료됨");
-            setCallStatus("통화가 종료되었습니다.");
-            setIsStreaming(false);
-          });
+        if (!call) {
+          addDebugLog("통화 연결 실패");
+          setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
+          return;
         }
+
+        setIsStreaming(true);
+        setCallStatus("스트리밍 시작됨");
+        addDebugLog("스트리밍 상태 true로 설정");
+
+        startRecording(stream);
+        addDebugLog("녹화 시작됨");
+
+        call.on("stream", (userVideoStream) => {
+          addDebugLog("상대방 스트림 수신 성공");
+          setCallStatus("상대방 스트림 연결됨");
+        });
+
+        call.on("error", (err) => {
+          addDebugLog(`통화 오류: ${err.toString()}`);
+          setCallStatus(`통화 오류: ${err.toString()}`);
+          setIsStreaming(false);
+        });
+
+        call.on("close", () => {
+          addDebugLog("통화 종료됨");
+          setCallStatus("통화가 종료되었습니다.");
+          setIsStreaming(false);
+        });
       })
       .catch((err) => {
         addDebugLog(`통화 실패: ${err.toString()}`);
@@ -468,47 +449,6 @@ const DollyZoomCamera = () => {
     }
   };
 
-  // 새로운 함수: Canvas 스트림 생성
-  const createCanvasStream = () => {
-    if (!canvasRef.current) return null;
-    return canvasRef.current.captureStream(30); // 30fps
-  };
-
-  // 비디오 프레임 처리 함수
-  const processVideoFrame = (hasDetection: boolean) => {
-    const video = myVideoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || !canvas.getContext) return;
-
-    const ctx = canvas.getContext("2d", { alpha: false });
-    if (!ctx) return;
-
-    if (
-      canvas.width !== video.videoWidth ||
-      canvas.height !== video.videoHeight
-    ) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
-
-    // 여기를 수정: 얼굴 감지 시 zoom out (1.0), 미감지 시 zoom in (2.0)
-    const targetZoom = hasDetection ? 1.0 : 2.0;
-    const currentZoom = viewportRef.current?.getCurrentZoom() || 1.0;
-    const smoothZoom = currentZoom + (targetZoom - currentZoom) * 0.2;
-
-    ctx.save();
-    ctx.imageSmoothingQuality = "low";
-
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    ctx.translate(centerX, centerY);
-    ctx.scale(smoothZoom, smoothZoom);
-    ctx.translate(-centerX, -centerY);
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
-  };
-
   // PeerJS 인스턴스 생성 시 설정 사용
   useEffect(() => {
     if (myUniqueId) {
@@ -597,71 +537,8 @@ const DollyZoomCamera = () => {
     };
   }, [recordingTimer]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const container = document.getElementById("viewport-container");
-    if (!container) return;
-
-    const viewport = new Viewport(container);
-    viewportRef.current = viewport;
-
-    const faceDetector = new FaceDetector();
-    const video = myVideoRef.current;
-
-    let isModelReady = false;
-    let detectionInterval: NodeJS.Timeout;
-    let lastDetectionTime = 0;
-    let lastDetectionResult = false;
-
-    const startDetection = async () => {
-      if (!video || !video.readyState || video.readyState < 2) return;
-
-      // 현재 시간 체크
-      const now = Date.now();
-      // 마지막 감지로부터 200ms가 지나지 않았다면 이전 결과 재사용
-      if (now - lastDetectionTime < 200) {
-        processVideoFrame(lastDetectionResult);
-        return;
-      }
-
-      try {
-        const hasDetection = await faceDetector.detect(video);
-        lastDetectionResult = hasDetection;
-        lastDetectionTime = now;
-        viewport.updateFaceDetection(hasDetection);
-        processVideoFrame(hasDetection);
-      } catch (error) {
-        console.error("Detection error:", error);
-      }
-    };
-
-    // 비디오가 준비되면 감지 시작
-    video?.addEventListener("loadeddata", () => {
-      if (isModelReady) {
-        // 감지 간격을 200ms로 늘림 (초당 5회)
-        detectionInterval = setInterval(startDetection, 200);
-      }
-    });
-
-    // 모델이 로드되면 준비 상태 업데이트
-    faceDetector.initModel().then(() => {
-      isModelReady = true;
-      if (video && video.readyState >= 2) {
-        detectionInterval = setInterval(startDetection, 200);
-      }
-    });
-
-    return () => {
-      if (detectionInterval) {
-        clearInterval(detectionInterval);
-      }
-      viewport.dispose();
-    };
-  }, []);
-
   return (
-    <div id="viewport-container" className="relative h-[100dvh] w-[100dvw]">
+    <div className="relative h-[100dvh] w-[100dvw]">
       <video
         style={{
           width: "100%",
@@ -696,9 +573,6 @@ const DollyZoomCamera = () => {
           </div>
         </div>
       )}
-
-      {/* 숨겨진 canvas 추가 */}
-      <canvas ref={canvasRef} style={{ display: "none" }} />
 
       {/* 디버깅 정보와 로그를 함께 표시 */}
       {/* <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">

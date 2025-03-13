@@ -321,7 +321,7 @@ const DollyZoom = () => {
                       transform: "rotate(-90deg)",
                       objectFit: "cover",
                       left: "10%",
-                      top: "-20%",
+                      top: "-10%",
                     }}
                     playsInline
                     ref={callingVideoRef}
