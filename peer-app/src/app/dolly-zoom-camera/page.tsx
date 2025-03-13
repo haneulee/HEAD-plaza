@@ -673,29 +673,31 @@ const DollyZoomCamera = () => {
   }, [recordingTimer]);
 
   // 터치 시작 처리
-  const handleTouchStart = (e: TouchEvent) => {
-    if (e.touches.length === 1) {
+  const handleTouchStart = (e: React.TouchEvent | TouchEvent) => {
+    if ("touches" in e && e.touches.length === 1) {
       touchStartYRef.current = e.touches[0].clientY;
       isDraggingRef.current = true;
     }
   };
 
   // 터치 이동 처리
-  const handleTouchMove = (e: TouchEvent) => {
+  const handleTouchMove = (e: React.TouchEvent | TouchEvent) => {
     if (!isDraggingRef.current || touchStartYRef.current === null) return;
 
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - touchStartYRef.current;
+    if ("touches" in e) {
+      const currentY = e.touches[0].clientY;
+      const deltaY = currentY - touchStartYRef.current;
 
-    // 드래그 방향: 아래로 드래그하면 줌인(확대), 위로 드래그하면 줌아웃(축소)
-    setZoomLevel((prev) => {
-      // 최소값을 0.5로 설정하여 더 축소 가능하도록 함
-      const newZoom = Math.max(0.5, Math.min(10, prev + deltaY * 0.1));
-      updateZoom(newZoom);
-      return newZoom;
-    });
+      // 드래그 방향: 아래로 드래그하면 줌인(확대), 위로 드래그하면 줌아웃(축소)
+      setZoomLevel((prev) => {
+        // 최소값을 0.5로 설정하여 더 축소 가능하도록 함
+        const newZoom = Math.max(0.5, Math.min(10, prev + deltaY * 0.1));
+        updateZoom(newZoom);
+        return newZoom;
+      });
 
-    touchStartYRef.current = currentY;
+      touchStartYRef.current = currentY;
+    }
   };
 
   // 터치 종료 처리
@@ -724,6 +726,24 @@ const DollyZoomCamera = () => {
     };
   }, []);
 
+  // 터치 이벤트 리스너 설정
+  useEffect(() => {
+    const videoElement = myVideoRef.current;
+    if (videoElement) {
+      videoElement.addEventListener("touchstart", handleTouchStart);
+      videoElement.addEventListener("touchmove", handleTouchMove);
+      videoElement.addEventListener("touchend", handleTouchEnd);
+      videoElement.addEventListener("touchcancel", handleTouchEnd);
+
+      return () => {
+        videoElement.removeEventListener("touchstart", handleTouchStart);
+        videoElement.removeEventListener("touchmove", handleTouchMove);
+        videoElement.removeEventListener("touchend", handleTouchEnd);
+        videoElement.removeEventListener("touchcancel", handleTouchEnd);
+      };
+    }
+  }, []);
+
   return (
     <div className="relative h-[100dvh] w-[100dvw] overflow-hidden">
       {/* 숨겨진 캔버스 */}
@@ -742,6 +762,10 @@ const DollyZoomCamera = () => {
         ref={myVideoRef}
         autoPlay
         muted
+        onTouchStart={handleTouchStart as any}
+        onTouchMove={handleTouchMove as any}
+        onTouchEnd={handleTouchEnd as any}
+        onTouchCancel={handleTouchEnd as any}
       />
 
       {/* 현재 줌 레벨 표시 (선택사항) */}

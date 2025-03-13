@@ -249,7 +249,7 @@ const DollyZoom = () => {
   // 비디오 스타일 업데이트
   const getVideoStyle = () => {
     return {
-      width: "56%",
+      // width: "56%",
       transform: `rotate(-90deg) scale(${remoteZoomLevel})`,
       objectFit: "cover" as const,
       left: "23%",
