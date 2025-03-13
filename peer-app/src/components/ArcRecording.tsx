@@ -4,7 +4,7 @@ interface Props {
   onRecordingComplete: (videoUrl: string) => void;
 }
 
-export const DollyRecording = ({ onRecordingComplete }: Props) => {
+export const ArcRecording = ({ onRecordingComplete }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const webcamRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -19,10 +19,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const MAX_ZOOM = 3.5; // 최대 줌 스케일 (왼쪽)
   const MIN_ZOOM = 1.5; // 최소 줌 스케일 (오른쪽)
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
-  const animationFrameRef = useRef<number>();
-  const lastZoomUpdateRef = useRef<number>(0);
-  const targetZoomRef = useRef(1.5);
+  const [canvasSize] = useState({ width: 1200, height: 900 }); // 4:3 비율 (1200 x 900)
 
   // 웹캠 설정을 처음 한 번만 실행
   useEffect(() => {
@@ -31,110 +28,93 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
 
     const setupWebcam = async () => {
       try {
-        // 웹캠 해상도를 최대한 높게 설정
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 3840 },
-            height: { ideal: 2160 },
-            frameRate: { ideal: 60 },
-          },
-        });
-
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (webcamRef.current && canvasRef.current) {
           webcamRef.current.srcObject = stream;
 
+          // Canvas 스트림 설정
           const canvas = canvasRef.current;
-          const ctx = canvas.getContext("2d", {
-            alpha: false, // 알파 채널 비활성화로 성능 향상
-            willReadFrequently: false, // 픽셀 읽기 최적화
-          });
+          const ctx = canvas.getContext("2d");
 
-          if (ctx) {
-            // 이미지 렌더링 품질 설정
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = "high";
+          // Canvas 크기 설정
+          canvas.width = canvasSize.width;
+          canvas.height = canvasSize.height;
 
-            // Canvas 크기 설정
-            canvas.width = canvasSize.width;
-            canvas.height = canvasSize.height;
+          // Canvas에 줌 효과를 적용하여 그리기
+          const drawFrame = () => {
+            if (webcamRef.current && ctx) {
+              ctx.save();
 
-            // Canvas에 줌 효과를 적용하여 그리기
-            const drawFrame = () => {
-              if (webcamRef.current && ctx) {
-                ctx.save();
+              // Canvas 초기화
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Canvas 초기화
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+              // 중앙 기준 줌 효과 적용
+              ctx.translate(canvas.width / 2, canvas.height / 2);
+              ctx.scale(zoomScale, zoomScale);
+              ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-                // 중앙 기준 줌 효과 적용
-                ctx.translate(canvas.width / 2, canvas.height / 2);
-                ctx.scale(zoomScale, zoomScale);
-                ctx.translate(-canvas.width / 2, -canvas.height / 2);
+              // 비디오 프레임 그리기
+              ctx.drawImage(
+                webcamRef.current,
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
 
-                // 비디오 프레임 그리기
-                ctx.drawImage(
-                  webcamRef.current,
-                  0,
-                  0,
-                  canvas.width,
-                  canvas.height
-                );
+              ctx.restore();
+            }
+            requestAnimationFrame(drawFrame);
+          };
+          drawFrame();
 
-                ctx.restore();
-              }
-              requestAnimationFrame(drawFrame);
-            };
-            drawFrame();
+          // Canvas 스트림 생성
+          canvasStream = canvas.captureStream(30); // 30fps
 
-            // Canvas 스트림 생성
-            canvasStream = canvas.captureStream(60); // 60fps로 증가
+          // 녹화 설정
+          const mediaRecorder = new MediaRecorder(canvasStream);
+          const chunks: BlobPart[] = [];
 
-            // 녹화 설정
-            const mediaRecorder = new MediaRecorder(canvasStream);
-            const chunks: BlobPart[] = [];
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+              chunks.push(e.data);
+            }
+          };
 
-            mediaRecorder.ondataavailable = (e) => {
-              if (e.data.size > 0) {
-                chunks.push(e.data);
-              }
-            };
+          mediaRecorder.onstop = async () => {
+            if (!isUploadingRef.current) return;
 
-            mediaRecorder.onstop = async () => {
-              if (!isUploadingRef.current) return;
+            const blob = new Blob(chunks, { type: "video/webm" });
+            const cloudName =
+              process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
+              "your_cloud_name";
+            const uploadPreset =
+              process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
 
-              const blob = new Blob(chunks, { type: "video/webm" });
-              const cloudName =
-                process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
-                "your_cloud_name";
-              const uploadPreset =
-                process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ||
-                "your_preset";
+            try {
+              const formData = new FormData();
+              formData.append("file", blob);
+              formData.append("upload_preset", uploadPreset);
 
-              try {
-                const formData = new FormData();
-                formData.append("file", blob);
-                formData.append("upload_preset", uploadPreset);
-
-                const response = await fetch(
-                  `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
-                  {
-                    method: "POST",
-                    body: formData,
-                  }
-                );
-
-                if (response.ok) {
-                  const data = await response.json();
-                  onRecordingComplete(data.secure_url);
+              const response = await fetch(
+                `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+                {
+                  method: "POST",
+                  body: formData,
                 }
-              } catch (error) {
-                console.error("Upload error:", error);
-              }
-            };
+              );
 
-            mediaRecorderRef.current = mediaRecorder;
-            mediaRecorder.start();
-          }
+              if (response.ok) {
+                const data = await response.json();
+                onRecordingComplete(data.secure_url);
+              }
+            } catch (error) {
+              console.error("Upload error:", error);
+            }
+          };
+
+          mediaRecorderRef.current = mediaRecorder;
+          mediaRecorder.start();
         }
       } catch (err) {
         console.error("웹캠 접근 에러:", err);
@@ -163,38 +143,12 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       const currentX = e.clientX;
       const windowWidth = window.innerWidth;
 
-      // X 위치를 0-1 사이의 값으로 정규화 (오른쪽이 최대값)
-      const normalizedX = currentX / windowWidth;
+      // X 위치를 0-1 사이의 값으로 정규화하고 뒤집기 (오른쪽이 최소값)
+      const normalizedX = 1 - currentX / windowWidth;
 
-      // 목표 줌 값 설정
-      targetZoomRef.current = MIN_ZOOM + normalizedX * (MAX_ZOOM - MIN_ZOOM);
-
-      // 부드러운 줌 효과를 위한 애니메이션
-      if (!animationFrameRef.current) {
-        const updateZoom = () => {
-          const now = performance.now();
-          const elapsed = now - lastZoomUpdateRef.current;
-
-          // 60fps 기준으로 프레임 제한
-          if (elapsed > 16.67) {
-            // 1000ms / 60fps ≈ 16.67ms
-            const currentZoom = zoomScale;
-            const diff = targetZoomRef.current - currentZoom;
-            const newZoom = currentZoom + diff * 0.2; // 부드러운 보간
-
-            setZoomScale(newZoom);
-            lastZoomUpdateRef.current = now;
-          }
-
-          if (Math.abs(targetZoomRef.current - zoomScale) > 0.01) {
-            animationFrameRef.current = requestAnimationFrame(updateZoom);
-          } else {
-            animationFrameRef.current = undefined;
-          }
-        };
-
-        animationFrameRef.current = requestAnimationFrame(updateZoom);
-      }
+      // 정규화된 값을 MIN_ZOOM에서 MAX_ZOOM 사이로 매핑
+      const newScale = MIN_ZOOM + normalizedX * (MAX_ZOOM - MIN_ZOOM);
+      setZoomScale(newScale);
 
       // 트리거 영역에서 카운트다운 시작
       if (currentX <= TRIGGER_ZONE && !showOverlay) {
@@ -208,13 +162,8 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
     };
 
     window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [showOverlay, zoomScale]);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, [showOverlay]);
 
   const cancelCountdown = () => {
     // 카운트다운 취소
@@ -269,41 +218,34 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
     }
   };
 
-  // 캔버스 드로잉 최적화
+  // zoomScale이 변경될 때마다 캔버스를 다시 그리도록 수정
   useEffect(() => {
     const canvas = canvasRef.current;
     const video = webcamRef.current;
-    const ctx = canvas?.getContext("2d", {
-      alpha: false,
-      willReadFrequently: false,
-    });
+    const ctx = canvas?.getContext("2d");
 
     if (!canvas || !video || !ctx) return;
 
-    let animationFrame: number;
     const drawFrame = () => {
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      // 중앙 기준 줌 효과 적용
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.scale(zoomScale, zoomScale);
       ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
-
-      animationFrame = requestAnimationFrame(drawFrame);
+      requestAnimationFrame(drawFrame);
     };
 
     drawFrame();
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      // cleanup
     };
-  }, [zoomScale]);
+  }, [zoomScale]); // zoomScale을 의존성 배열에 추가
 
   return (
     <div className="flex flex-col h-screen">
@@ -326,7 +268,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
             loop
             muted
             playsInline
-            src="/sample/dolly zoom - jaws.mov"
+            src="/sample/arc shot - matrix.mov"
             onTimeUpdate={handleTimeUpdate}
           />
         </div>
@@ -335,11 +277,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
         <div className="overflow-hidden flex justify-center">
           <canvas
             ref={canvasRef}
-            className="rounded-lg max-w-full h-auto"
-            style={{
-              width: "100%",
-              maxWidth: "1920px", // 디스플레이 크기는 FHD로 제한
-            }}
+            className="rounded-lg"
             width={canvasSize.width}
             height={canvasSize.height}
           />
@@ -358,7 +296,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="text-center text-white">
             <p className="text-4xl mb-4">
-              Your dolly zoom will be completed in {countdown}.
+              Your arc shot will be completed in {countdown}.
             </p>
             <p className="text-2xl">Don't move the camera to get your movie.</p>
           </div>
