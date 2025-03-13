@@ -28,6 +28,7 @@ const DollyTest = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // 웹캠 설정
   const videoConstraints = {
@@ -64,7 +65,7 @@ const DollyTest = () => {
       const mediaRecorder = new MediaRecorder(stream, options);
 
       mediaRecorder.ondataavailable = (event) => {
-        console.log("Data available, size:", event.data?.size);
+        // console.log("Data available, size:", event.data?.size);
         if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
         }
@@ -282,8 +283,20 @@ const DollyTest = () => {
     setCameraError(typeof err === "string" ? err : err.message);
   }, []);
 
+  // 마우스 이동 핸들러
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const normalizedX = e.clientX / window.innerWidth;
+    // 마우스 x 좌표가 작을수록 줌아웃(1.0), 클수록 줌인(2.5)
+    const newZoomLevel = 1 + normalizedX * 1.5; // 1.0에서 시작해서 2.5까지 증가
+    setZoomLevel(newZoomLevel);
+  }, []);
+
   return (
-    <div className="flex flex-col h-screen bg-black text-white">
+    <div
+      className="flex flex-col h-screen bg-black text-white"
+      onMouseMove={handleMouseMove}
+      // onMouseLeave={() => setZoomLevel(1)}
+    >
       <button
         onClick={() => setIsInfoOpen(true)}
         className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg hover:bg-opacity-70 z-10"
@@ -349,9 +362,8 @@ const DollyTest = () => {
           </h2>
 
           <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
-            {/* 웹캠 컴포넌트 - 필요에 따라 보이거나 숨김 */}
             <div
-              className={`absolute w-full h-full ${
+              className={`absolute w-full h-full overflow-hidden ${
                 showInstructions || videoUrl ? "hidden" : ""
               }`}
             >
@@ -361,6 +373,10 @@ const DollyTest = () => {
                 videoConstraints={videoConstraints}
                 onUserMediaError={handleWebcamError}
                 className="rounded-lg w-full h-full object-cover"
+                style={{
+                  transform: `scale(${zoomLevel})`,
+                  transition: "transform 100ms ease-out",
+                }}
               />
             </div>
 
