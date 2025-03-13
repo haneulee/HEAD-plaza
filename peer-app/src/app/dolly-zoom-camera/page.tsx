@@ -27,6 +27,11 @@ const DollyZoomCamera = () => {
   const touchStartYRef = useRef<number | null>(null);
   const isDraggingRef = useRef<boolean>(false);
 
+  // 필요한 추가 ref 선언
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasStreamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
   // 로그를 화면에 표시하기 위한 함수
   const addDebugLog = (message: string) => {
     setDebugLogs((prev) => [
@@ -169,71 +174,88 @@ const DollyZoomCamera = () => {
     return "dolly-zoom-viewer"; // 서버 사이드에서는 기본값 반환
   };
 
-  const startRecording = (stream: MediaStream) => {
+  const startRecording = async (stream: MediaStream) => {
     recordedChunksRef.current = [];
     setRecordingDuration(0); // 녹화 시간 초기화
 
-    // 지원하는 MIME 타입 확인
-    const mimeTypes = [
-      "video/webm;codecs=vp8", // vp8이 일반적으로 더 작은 파일 크기
-      "video/webm",
-      "video/mp4",
-      "video/webm;codecs=vp9",
-    ];
-
-    let mimeType = "";
-    for (const type of mimeTypes) {
-      if (MediaRecorder.isTypeSupported(type)) {
-        mimeType = type;
-        addDebugLog(`지원하는 MIME 타입: ${type}`);
-        break;
-      }
-    }
-
-    if (!mimeType) {
-      addDebugLog("지원하는 비디오 MIME 타입을 찾을 수 없습니다.");
-      return;
-    }
-
     try {
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeType,
-        videoBitsPerSecond: 800000, // 800 Kbps로 더 낮게 제한 (파일 크기 감소)
-      });
-
-      // 5초마다 데이터 청크 생성
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-          addDebugLog(
-            `녹화 청크 크기: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`
-          );
+      // 녹화 전 현재 줌 레벨 적용
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack && "getCapabilities" in videoTrack) {
+        const capabilities =
+          videoTrack.getCapabilities() as MediaTrackCapabilities;
+        if (capabilities.zoom) {
+          await videoTrack.applyConstraints({
+            advanced: [{ zoom: zoomLevel } as MediaTrackConstraintSet],
+          });
+          addDebugLog(`녹화 시작 전 줌 레벨 설정: ${zoomLevel}`);
         }
-      };
+      }
 
-      mediaRecorder.start(5000); // 5초마다 청크 생성
-      mediaRecorderRef.current = mediaRecorder;
-      addDebugLog("녹화가 시작되었습니다. (비트레이트: 800Kbps)");
+      // 지원하는 MIME 타입 확인
+      const mimeTypes = [
+        "video/webm;codecs=vp8", // vp8이 일반적으로 더 작은 파일 크기
+        "video/webm",
+        "video/mp4",
+        "video/webm;codecs=vp9",
+      ];
 
-      // 1분 타이머 설정
-      const timer = window.setInterval(() => {
-        setRecordingDuration((prev) => {
-          const newDuration = prev + 1;
+      let mimeType = "";
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          addDebugLog(`지원하는 MIME 타입: ${type}`);
+          break;
+        }
+      }
 
-          // 최대 녹화 시간 도달 시 자동 종료
-          if (newDuration >= MAX_RECORDING_DURATION) {
-            addDebugLog("최대 녹화 시간(1분) 도달, 자동 종료");
-            clearInterval(timer);
-            handleCut(); // 녹화 종료 함수 호출
-          }
+      if (!mimeType) {
+        addDebugLog("지원하는 비디오 MIME 타입을 찾을 수 없습니다.");
+        return;
+      }
 
-          return newDuration;
+      try {
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: mimeType,
+          videoBitsPerSecond: 800000, // 800 Kbps로 더 낮게 제한 (파일 크기 감소)
         });
-      }, 1000);
 
-      setRecordingTimer(timer);
+        // 5초마다 데이터 청크 생성
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+            addDebugLog(
+              `녹화 청크 크기: ${(event.data.size / 1024 / 1024).toFixed(2)}MB`
+            );
+          }
+        };
+
+        mediaRecorder.start(5000); // 5초마다 청크 생성
+        mediaRecorderRef.current = mediaRecorder;
+        addDebugLog("녹화가 시작되었습니다. (비트레이트: 800Kbps)");
+
+        // 1분 타이머 설정
+        const timer = window.setInterval(() => {
+          setRecordingDuration((prev) => {
+            const newDuration = prev + 1;
+
+            // 최대 녹화 시간 도달 시 자동 종료
+            if (newDuration >= MAX_RECORDING_DURATION) {
+              addDebugLog("최대 녹화 시간(1분) 도달, 자동 종료");
+              clearInterval(timer);
+              handleCut(); // 녹화 종료 함수 호출
+            }
+
+            return newDuration;
+          });
+        }, 1000);
+
+        setRecordingTimer(timer);
+      } catch (err) {
+        addDebugLog(`MediaRecorder 생성 실패: ${err}`);
+      }
     } catch (err) {
-      addDebugLog(`MediaRecorder 생성 실패: ${err}`);
+      addDebugLog(`녹화 시작 전 줌 설정 실패: ${err}`);
     }
   };
 
@@ -296,6 +318,83 @@ const DollyZoomCamera = () => {
     });
   };
 
+  // 캔버스 초기화 및 비디오 스트림 처리 함수
+  const setupCanvas = async (videoStream: MediaStream) => {
+    if (!canvasRef.current || !myVideoRef.current) return null;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    // 캔버스 크기 설정 (비디오와 동일하게)
+    const videoTrack = videoStream.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+
+    // 비디오 트랙의 실제 해상도 사용
+    const width = settings.width || 1280;
+    const height = settings.height || 720;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    // 비디오 요소에 원본 스트림 연결
+    myVideoRef.current.srcObject = videoStream;
+
+    // 캔버스에 비디오 그리기 함수
+    const drawVideoWithZoom = () => {
+      if (!ctx || !myVideoRef.current) return;
+
+      // 캔버스 지우기
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 줌 계산 (중앙에서 확대)
+      const scaleFactor = zoomLevel;
+      const scaledWidth = canvas.width / scaleFactor;
+      const scaledHeight = canvas.height / scaleFactor;
+      const centerX = (canvas.width - scaledWidth) / 2;
+      const centerY = (canvas.height - scaledHeight) / 2;
+
+      // 비디오를 캔버스에 그리기 (줌 적용)
+      ctx.drawImage(
+        myVideoRef.current,
+        centerX,
+        centerY,
+        scaledWidth,
+        scaledHeight,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      // 다음 프레임 요청
+      animationFrameRef.current = requestAnimationFrame(drawVideoWithZoom);
+    };
+
+    // 애니메이션 시작
+    drawVideoWithZoom();
+
+    // 캔버스에서 스트림 생성
+    try {
+      const canvasStream = canvas.captureStream(30); // 30fps
+
+      // 오디오 트랙 추가 (원본 스트림에서)
+      const audioTracks = videoStream.getAudioTracks();
+      audioTracks.forEach((track) => {
+        canvasStream.addTrack(track);
+      });
+
+      canvasStreamRef.current = canvasStream;
+      addDebugLog("캔버스 스트림 생성 성공");
+
+      return canvasStream;
+    } catch (err) {
+      addDebugLog(`캔버스 스트림 생성 실패: ${err}`);
+      return null;
+    }
+  };
+
+  // 기존 handleCall 함수 수정
   const handleCall = () => {
     addDebugLog("handleCall 시작");
 
@@ -313,61 +412,66 @@ const DollyZoomCamera = () => {
       .then(async (stream) => {
         addDebugLog("미디어 스트림 획득 성공");
 
-        // 초기 줌 레벨 설정
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack && "getCapabilities" in videoTrack) {
-          const capabilities =
-            videoTrack.getCapabilities() as MediaTrackCapabilities;
-          if (capabilities.zoom) {
-            await videoTrack.applyConstraints({
-              advanced: [{ zoom: zoomLevel } as MediaTrackConstraintSet],
-            });
+        // 캔버스 설정 및 줌 효과가 적용된 스트림 생성
+        const canvasStream = await setupCanvas(stream);
+
+        if (!canvasStream) {
+          addDebugLog("캔버스 스트림 생성 실패, 원본 스트림 사용");
+
+          if (myVideoRef.current) {
+            myVideoRef.current.srcObject = stream;
           }
+
+          // 원본 스트림으로 진행
+          proceedWithCall(stream);
+        } else {
+          addDebugLog("캔버스 스트림 생성 성공, 줌 효과 적용됨");
+          proceedWithCall(canvasStream);
         }
-
-        if (myVideoRef.current) {
-          myVideoRef.current.srcObject = stream;
-          addDebugLog("비디오 요소에 스트림 연결됨");
-        }
-
-        const call = peerInstance.call(viewerId, stream);
-        addDebugLog("피어 호출 시도: " + viewerId);
-
-        if (!call) {
-          addDebugLog("통화 연결 실패");
-          setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
-          return;
-        }
-
-        setIsStreaming(true);
-        setCallStatus("스트리밍 시작됨");
-        addDebugLog("스트리밍 상태 true로 설정");
-
-        startRecording(stream);
-        addDebugLog("녹화 시작됨");
-
-        call.on("stream", (userVideoStream) => {
-          addDebugLog("상대방 스트림 수신 성공");
-          setCallStatus("상대방 스트림 연결됨");
-        });
-
-        call.on("error", (err) => {
-          addDebugLog(`통화 오류: ${err.toString()}`);
-          setCallStatus(`통화 오류: ${err.toString()}`);
-          setIsStreaming(false);
-        });
-
-        call.on("close", () => {
-          addDebugLog("통화 종료됨");
-          setCallStatus("통화가 종료되었습니다.");
-          setIsStreaming(false);
-        });
       })
       .catch((err) => {
         addDebugLog(`통화 실패: ${err.toString()}`);
         setCallStatus(`통화 실패: ${err.toString()}`);
         setIsStreaming(false);
       });
+  };
+
+  // 통화 진행 함수 (스트림 분리)
+  const proceedWithCall = (stream: MediaStream) => {
+    if (!peerInstance) return;
+
+    const call = peerInstance.call(viewerId, stream);
+    addDebugLog("피어 호출 시도: " + viewerId);
+
+    if (!call) {
+      addDebugLog("통화 연결 실패");
+      setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
+      return;
+    }
+
+    setIsStreaming(true);
+    setCallStatus("스트리밍 시작됨");
+    addDebugLog("스트리밍 상태 true로 설정");
+
+    startRecording(stream);
+    addDebugLog("녹화 시작됨");
+
+    call.on("stream", (userVideoStream) => {
+      addDebugLog("상대방 스트림 수신 성공");
+      setCallStatus("상대방 스트림 연결됨");
+    });
+
+    call.on("error", (err) => {
+      addDebugLog(`통화 오류: ${err.toString()}`);
+      setCallStatus(`통화 오류: ${err.toString()}`);
+      setIsStreaming(false);
+    });
+
+    call.on("close", () => {
+      addDebugLog("통화 종료됨");
+      setCallStatus("통화가 종료되었습니다.");
+      setIsStreaming(false);
+    });
   };
 
   const handleCut = async () => {
@@ -600,94 +704,46 @@ const DollyZoomCamera = () => {
     isDraggingRef.current = false;
   };
 
-  // 줌 레벨 업데이트 함수
-  const updateZoom = async (zoomLevel: number) => {
-    try {
-      if (myVideoRef.current?.srcObject) {
-        const stream = myVideoRef.current.srcObject as MediaStream;
-        const videoTrack = stream.getVideoTracks()[0];
-
-        if (videoTrack && "getCapabilities" in videoTrack) {
-          const capabilities =
-            videoTrack.getCapabilities() as MediaTrackCapabilities;
-
-          if (capabilities.zoom) {
-            // 줌 범위를 capabilities에 맞게 조정
-            const minZoom = capabilities.zoom.min || 1;
-            const maxZoom = capabilities.zoom.max || 10; // 최대 줌 범위 확장
-            const normalizedZoom = Math.max(
-              minZoom,
-              Math.min(maxZoom, zoomLevel)
-            );
-
-            await videoTrack.applyConstraints({
-              advanced: [{ zoom: normalizedZoom } as MediaTrackConstraintSet],
-            });
-
-            addDebugLog(`Zoom level set to: ${normalizedZoom}`);
-
-            // 하드웨어 줌을 사용할 때는 CSS 변환 초기화
-            if (myVideoRef.current) {
-              myVideoRef.current.style.transform = "none";
-            }
-          } else {
-            // 줌 기능이 없는 경우 CSS 스케일링으로 대체
-            if (myVideoRef.current) {
-              // CSS 스케일은 1부터 시작 (원본 크기)
-              const scale = zoomLevel;
-              myVideoRef.current.style.transform = `scale(${scale})`;
-              addDebugLog(`CSS scale: ${scale}`);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      addDebugLog(`Failed to apply zoom: ${err}`);
-    }
+  // 줌 레벨 변경 시 캔버스 업데이트만 필요 (자동으로 적용됨)
+  // 기존 updateZoom 함수는 더 이상 필요 없음
+  const updateZoom = (newZoomLevel: number) => {
+    setZoomLevel(newZoomLevel);
+    addDebugLog(`Zoom level set to: ${newZoomLevel}`);
   };
 
-  // 컴포넌트 마운트 시 초기 스타일 설정
+  // 컴포넌트 언마운트 시 정리
   useEffect(() => {
-    // 초기 상태에서는 변환 없음
-    if (myVideoRef.current) {
-      myVideoRef.current.style.transform = "none";
-    }
-  }, []);
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
 
-  // 터치 이벤트 리스너 설정
-  useEffect(() => {
-    const videoElement = myVideoRef.current;
-    if (videoElement) {
-      videoElement.addEventListener("touchstart", handleTouchStart);
-      videoElement.addEventListener("touchmove", handleTouchMove);
-      videoElement.addEventListener("touchend", handleTouchEnd);
-      videoElement.addEventListener("touchcancel", handleTouchEnd);
-
-      return () => {
-        videoElement.removeEventListener("touchstart", handleTouchStart);
-        videoElement.removeEventListener("touchmove", handleTouchMove);
-        videoElement.removeEventListener("touchend", handleTouchEnd);
-        videoElement.removeEventListener("touchcancel", handleTouchEnd);
-      };
-    }
+      if (canvasStreamRef.current) {
+        canvasStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
   }, []);
 
   return (
-    <div className="relative h-[100dvh] w-[100dvw]">
+    <div className="relative h-[100dvh] w-[100dvw] overflow-hidden">
+      {/* 숨겨진 캔버스 */}
+      <canvas ref={canvasRef} style={{ display: "none" }} />
+
+      {/* 비디오 요소 (미리보기용) */}
       <video
         style={{
           width: "100%",
           height: "100%",
           objectFit: "cover",
           touchAction: "none",
-          transformOrigin: "center", // 중앙에서 확대/축소
-          transform: "none", // 초기 상태에서는 변환 없음
+          transformOrigin: "center",
         }}
         playsInline
         ref={myVideoRef}
         autoPlay
         muted
       />
+
       {/* 현재 줌 레벨 표시 (선택사항) */}
       <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded">
         {Math.round(zoomLevel * 100) / 100}x

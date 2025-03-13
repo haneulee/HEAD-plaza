@@ -16,6 +16,7 @@ const DollyZoom = () => {
   const [receivedVideoUrl, setReceivedVideoUrl] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [remoteZoomLevel, setRemoteZoomLevel] = useState<number>(1);
 
   // URL에 ID 파라미터 추가하는 함수
   const updateUrlWithId = (id: string) => {
@@ -236,11 +237,26 @@ const DollyZoom = () => {
             console.log("Received video URL:", data.url);
             setReceivedVideoUrl(data.url);
             setIsStreaming(false); // 스트리밍 종료
+          } else if (data.type === "zoom-level") {
+            console.log("Received zoom level:", data.level);
+            setRemoteZoomLevel(data.level);
           }
         });
       });
     }
   }, [peerInstance]);
+
+  // 비디오 스타일 업데이트
+  const getVideoStyle = () => {
+    return {
+      width: "56%",
+      transform: `rotate(-90deg) scale(${remoteZoomLevel})`,
+      objectFit: "cover" as const,
+      left: "23%",
+      top: "-40%",
+      transformOrigin: "center",
+    };
+  };
 
   return (
     <div className="flex flex-col h-screen bg-black text-white">
@@ -313,16 +329,11 @@ const DollyZoom = () => {
                 : "Ready to start!"}
             </h2>
             {isStreaming ? (
-              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center">
+              <div className="aspect-video flex-shrink-0 relative flex items-center justify-center overflow-hidden">
                 <div className="w-full h-full relative">
                   <video
                     className="rounded-lg absolute"
-                    style={{
-                      transform: "rotate(-90deg)",
-                      objectFit: "cover",
-                      left: "10%",
-                      top: "-10%",
-                    }}
+                    style={getVideoStyle()}
                     playsInline
                     ref={callingVideoRef}
                     autoPlay
