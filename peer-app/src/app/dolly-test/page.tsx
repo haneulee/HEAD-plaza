@@ -28,7 +28,7 @@ const DollyTest = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomLevel, setZoomLevel] = useState(1.5);
 
   // 웹캠 설정
   const videoConstraints = {
@@ -286,8 +286,8 @@ const DollyTest = () => {
   // 마우스 이동 핸들러
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const normalizedX = e.clientX / window.innerWidth;
-    // 마우스 x 좌표가 작을수록 줌아웃(1.0), 클수록 줌인(2.5)
-    const newZoomLevel = 1 + normalizedX * 1.5; // 1.0에서 시작해서 2.5까지 증가
+    // 마우스 x 좌표가 작을수록 줌아웃(1.5), 클수록 줌인(4.5)
+    const newZoomLevel = 1.5 + normalizedX * 3.0; // 1.5에서 시작해서 4.5까지 증가
     setZoomLevel(newZoomLevel);
   }, []);
 
@@ -295,7 +295,6 @@ const DollyTest = () => {
     <div
       className="flex flex-col h-screen bg-black text-white"
       onMouseMove={handleMouseMove}
-      // onMouseLeave={() => setZoomLevel(1)}
     >
       <button
         onClick={() => setIsInfoOpen(true)}
