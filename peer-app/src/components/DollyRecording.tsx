@@ -19,7 +19,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const MAX_ZOOM = 3.5; // 최대 줌 스케일 (왼쪽)
   const MIN_ZOOM = 1.5; // 최소 줌 스케일 (오른쪽)
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [canvasSize] = useState({ width: 1200, height: 900 }); // 4:3 비율 (1200 x 900)
+  const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
 
   // 웹캠 설정을 처음 한 번만 실행
   useEffect(() => {
@@ -28,93 +28,110 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
 
     const setupWebcam = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // 웹캠 해상도를 최대한 높게 설정
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 60 },
+          },
+        });
+
         if (webcamRef.current && canvasRef.current) {
           webcamRef.current.srcObject = stream;
 
-          // Canvas 스트림 설정
           const canvas = canvasRef.current;
-          const ctx = canvas.getContext("2d");
+          const ctx = canvas.getContext("2d", {
+            alpha: false, // 알파 채널 비활성화로 성능 향상
+            willReadFrequently: false, // 픽셀 읽기 최적화
+          });
 
-          // Canvas 크기 설정
-          canvas.width = canvasSize.width;
-          canvas.height = canvasSize.height;
+          if (ctx) {
+            // 이미지 렌더링 품질 설정
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
 
-          // Canvas에 줌 효과를 적용하여 그리기
-          const drawFrame = () => {
-            if (webcamRef.current && ctx) {
-              ctx.save();
+            // Canvas 크기 설정
+            canvas.width = canvasSize.width;
+            canvas.height = canvasSize.height;
 
-              // Canvas 초기화
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Canvas에 줌 효과를 적용하여 그리기
+            const drawFrame = () => {
+              if (webcamRef.current && ctx) {
+                ctx.save();
 
-              // 중앙 기준 줌 효과 적용
-              ctx.translate(canvas.width / 2, canvas.height / 2);
-              ctx.scale(zoomScale, zoomScale);
-              ctx.translate(-canvas.width / 2, -canvas.height / 2);
+                // Canvas 초기화
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-              // 비디오 프레임 그리기
-              ctx.drawImage(
-                webcamRef.current,
-                0,
-                0,
-                canvas.width,
-                canvas.height
-              );
+                // 중앙 기준 줌 효과 적용
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.scale(zoomScale, zoomScale);
+                ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-              ctx.restore();
-            }
-            requestAnimationFrame(drawFrame);
-          };
-          drawFrame();
+                // 비디오 프레임 그리기
+                ctx.drawImage(
+                  webcamRef.current,
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height
+                );
 
-          // Canvas 스트림 생성
-          canvasStream = canvas.captureStream(30); // 30fps
-
-          // 녹화 설정
-          const mediaRecorder = new MediaRecorder(canvasStream);
-          const chunks: BlobPart[] = [];
-
-          mediaRecorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-              chunks.push(e.data);
-            }
-          };
-
-          mediaRecorder.onstop = async () => {
-            if (!isUploadingRef.current) return;
-
-            const blob = new Blob(chunks, { type: "video/webm" });
-            const cloudName =
-              process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
-              "your_cloud_name";
-            const uploadPreset =
-              process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
-
-            try {
-              const formData = new FormData();
-              formData.append("file", blob);
-              formData.append("upload_preset", uploadPreset);
-
-              const response = await fetch(
-                `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
-                {
-                  method: "POST",
-                  body: formData,
-                }
-              );
-
-              if (response.ok) {
-                const data = await response.json();
-                onRecordingComplete(data.secure_url);
+                ctx.restore();
               }
-            } catch (error) {
-              console.error("Upload error:", error);
-            }
-          };
+              requestAnimationFrame(drawFrame);
+            };
+            drawFrame();
 
-          mediaRecorderRef.current = mediaRecorder;
-          mediaRecorder.start();
+            // Canvas 스트림 생성
+            canvasStream = canvas.captureStream(60); // 60fps로 증가
+
+            // 녹화 설정
+            const mediaRecorder = new MediaRecorder(canvasStream);
+            const chunks: BlobPart[] = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                chunks.push(e.data);
+              }
+            };
+
+            mediaRecorder.onstop = async () => {
+              if (!isUploadingRef.current) return;
+
+              const blob = new Blob(chunks, { type: "video/webm" });
+              const cloudName =
+                process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
+                "your_cloud_name";
+              const uploadPreset =
+                process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ||
+                "your_preset";
+
+              try {
+                const formData = new FormData();
+                formData.append("file", blob);
+                formData.append("upload_preset", uploadPreset);
+
+                const response = await fetch(
+                  `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+                  {
+                    method: "POST",
+                    body: formData,
+                  }
+                );
+
+                if (response.ok) {
+                  const data = await response.json();
+                  onRecordingComplete(data.secure_url);
+                }
+              } catch (error) {
+                console.error("Upload error:", error);
+              }
+            };
+
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start();
+          }
         }
       } catch (err) {
         console.error("웹캠 접근 에러:", err);
@@ -143,8 +160,8 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       const currentX = e.clientX;
       const windowWidth = window.innerWidth;
 
-      // X 위치를 0-1 사이의 값으로 정규화하고 뒤집기 (오른쪽이 최소값)
-      const normalizedX = 1 - currentX / windowWidth;
+      // X 위치를 0-1 사이의 값으로 정규화 (오른쪽이 최대값)
+      const normalizedX = currentX / windowWidth;
 
       // 정규화된 값을 MIN_ZOOM에서 MAX_ZOOM 사이로 매핑
       const newScale = MIN_ZOOM + normalizedX * (MAX_ZOOM - MIN_ZOOM);
@@ -222,7 +239,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   useEffect(() => {
     const canvas = canvasRef.current;
     const video = webcamRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ctx = canvas?.getContext("2d", {
+      alpha: false,
+      willReadFrequently: false,
+    });
 
     if (!canvas || !video || !ctx) return;
 
@@ -234,6 +254,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.scale(zoomScale, zoomScale);
       ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+      // 이미지 렌더링 품질 설정
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
@@ -277,7 +301,11 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
         <div className="overflow-hidden flex justify-center">
           <canvas
             ref={canvasRef}
-            className="rounded-lg"
+            className="rounded-lg max-w-full h-auto"
+            style={{
+              width: "100%",
+              maxWidth: "1920px", // 디스플레이 크기는 FHD로 제한
+            }}
             width={canvasSize.width}
             height={canvasSize.height}
           />

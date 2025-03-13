@@ -279,7 +279,7 @@ const ArcShot = () => {
               loop
               muted
               playsInline
-              src="/sample/arc shot - matrix.mp4"
+              src="/sample/arc shot - matrix.mov"
               onLoadedMetadata={(e) => {
                 e.currentTarget.playbackRate = 0.5; // 0.5배속 (원래 속도의 절반)
               }}
