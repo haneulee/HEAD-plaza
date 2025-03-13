@@ -581,11 +581,12 @@ const DollyZoomCamera = () => {
     if (!isDraggingRef.current || touchStartYRef.current === null) return;
 
     const currentY = e.touches[0].clientY;
-    const deltaY = touchStartYRef.current - currentY; // 부호 다시 변경 (위로 드래그 = 양수)
+    const deltaY = currentY - touchStartYRef.current; // 아래로 드래그 = 양수
 
-    // 드래그 방향: 위로 드래그하면 줌인(확대), 아래로 드래그하면 줌아웃(축소)
+    // 드래그 방향: 아래로 드래그하면 줌인(확대), 위로 드래그하면 줌아웃(축소)
+    // 감도를 0.03에서 0.1로 크게 증가
     setZoomLevel((prev) => {
-      const newZoom = Math.max(1, Math.min(10, prev + deltaY * 0.03));
+      const newZoom = Math.max(1, Math.min(10, prev + deltaY * 0.1));
       updateZoom(newZoom); // 실시간으로 줌 적용
       return newZoom;
     });
@@ -624,6 +625,11 @@ const DollyZoomCamera = () => {
             });
 
             addDebugLog(`Zoom level set to: ${normalizedZoom}`);
+
+            // 하드웨어 줌을 사용할 때는 CSS 변환 초기화
+            if (myVideoRef.current) {
+              myVideoRef.current.style.transform = "none";
+            }
           } else {
             // 줌 기능이 없는 경우 CSS 스케일링으로 대체
             if (myVideoRef.current) {
@@ -639,6 +645,14 @@ const DollyZoomCamera = () => {
       addDebugLog(`Failed to apply zoom: ${err}`);
     }
   };
+
+  // 컴포넌트 마운트 시 초기 스타일 설정
+  useEffect(() => {
+    // 초기 상태에서는 변환 없음
+    if (myVideoRef.current) {
+      myVideoRef.current.style.transform = "none";
+    }
+  }, []);
 
   // 터치 이벤트 리스너 설정
   useEffect(() => {
@@ -667,6 +681,7 @@ const DollyZoomCamera = () => {
           objectFit: "cover",
           touchAction: "none",
           transformOrigin: "center", // 중앙에서 확대/축소
+          transform: "none", // 초기 상태에서는 변환 없음
         }}
         playsInline
         ref={myVideoRef}
