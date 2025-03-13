@@ -483,7 +483,6 @@ const DollyZoomCamera = () => {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    // 캔버스 크기 조정은 한 번만 수행
     if (
       canvas.width !== video.videoWidth ||
       canvas.height !== video.videoHeight
@@ -492,15 +491,13 @@ const DollyZoomCamera = () => {
       canvas.height = video.videoHeight;
     }
 
-    // 현재 zoom 레벨 계산
-    const targetZoom = hasDetection ? 2.0 : 1.0;
+    // 여기를 수정: 얼굴 감지 시 zoom out (1.0), 미감지 시 zoom in (2.0)
+    const targetZoom = hasDetection ? 1.0 : 2.0;
     const currentZoom = viewportRef.current?.getCurrentZoom() || 1.0;
-    // 부드러운 전환 계수를 더 크게 설정하여 업데이트 횟수 감소
     const smoothZoom = currentZoom + (targetZoom - currentZoom) * 0.2;
 
-    // Canvas 렌더링 최적화
     ctx.save();
-    ctx.imageSmoothingQuality = "low"; // 이미지 품질을 낮춰 성능 향상
+    ctx.imageSmoothingQuality = "low";
 
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
