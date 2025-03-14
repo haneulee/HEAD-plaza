@@ -59,7 +59,7 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상  style={{ marginTop: "-50px" }}*/}
-        <div className="relative w-[1200px]">
+        <div className="relative w-[1200px]" style={{ marginTop: "100px" }}>
           {/* 웹캠 상단 가리개 */}
           <div className="absolute top-0 left-0 w-full h-[50px] bg-black z-10" />
           <video

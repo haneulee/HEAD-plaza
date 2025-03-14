@@ -456,13 +456,13 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
           />
         </div>
 
-        {/* 하단 웹캠 영상 (캔버스로 대체) */}
+        {/* 하단 웹캠 영상 (캔버스로 대체) style={{ marginTop: "-10px" }} */}
         <div className="overflow-hidden flex justify-center">
-          <div className="relative" style={{ marginTop: "-10px" }}>
+          <div className="relative">
             {/* 하단 20px를 가리는 오버레이 */}
             <div
               className="absolute bottom-0 left-0 right-0 bg-black z-10 rounded-b-lg"
-              style={{ height: "20px" }}
+              style={{ height: "80px" }}
             ></div>
             <canvas
               ref={canvasRef}
