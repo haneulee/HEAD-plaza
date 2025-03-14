@@ -20,6 +20,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
   const [isLoading, setIsLoading] = useState(false);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null); // 녹화 시간 제한을 위한 타이머
+  const MAX_RECORDING_TIME = 60000; // 최대 녹화 시간 (1분 = 60000ms)
+  const [recordingTime, setRecordingTime] = useState(0); // 녹화 시간 상태
+  const recordingStartTimeRef = useRef<number | null>(null); // 녹화 시작 시간 참조
 
   // Cloudinary 업로드 함수 수정
   const uploadToCloudinary = async (videoBlob: Blob) => {
@@ -226,6 +230,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       if (countIntervalRef.current) {
         clearInterval(countIntervalRef.current);
       }
+      // 녹화 타이머 정리 추가
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current);
+      }
     };
   }, []);
 
@@ -290,6 +298,9 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
           clearInterval(countIntervalRef.current);
           countIntervalRef.current = null;
         }
+
+        // 녹화 시작 및 타이머 설정
+        startRecording();
         stopRecordingAndUpload();
       }
     }, 1000);
@@ -303,8 +314,45 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
     ) {
       setIsLoading(true); // 업로드 시작 시 로딩 표시
       isUploadingRef.current = true;
+
+      // 녹화 타이머가 있으면 정리
+      if (recordingTimerRef.current) {
+        clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+
+      // 녹화 시간 초기화
+      setRecordingTime(0);
+      recordingStartTimeRef.current = null;
+
       mediaRecorderRef.current.stop();
     }
+  };
+
+  // 녹화 시작 함수 추가
+  const startRecording = () => {
+    // 녹화 시작 시간 기록
+    recordingStartTimeRef.current = Date.now();
+
+    // 녹화 시간 업데이트를 위한 인터벌 설정
+    const updateRecordingTime = () => {
+      if (recordingStartTimeRef.current) {
+        const elapsed = Date.now() - recordingStartTimeRef.current;
+        setRecordingTime(elapsed);
+
+        // 1초마다 업데이트
+        setTimeout(updateRecordingTime, 1000);
+      }
+    };
+
+    // 첫 업데이트 시작
+    updateRecordingTime();
+
+    // 1분 후 자동 종료 타이머 설정
+    recordingTimerRef.current = setTimeout(() => {
+      console.log("Maximum recording time reached (1 minute)");
+      stopRecordingAndUpload();
+    }, MAX_RECORDING_TIME);
   };
 
   const handleTimeUpdate = () => {
@@ -364,6 +412,14 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* 녹화 시간 표시 */}
+      {recordingTime > 0 && (
+        <div className="fixed top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center z-50">
+          <div className="w-3 h-3 bg-red-400 rounded-full mr-2 animate-pulse"></div>
+          <span>{Math.floor(recordingTime / 1000)}s / 60s</span>
+        </div>
+      )}
 
       {/* 샘플 비디오와 웹캠 컨테이너 */}
       <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
