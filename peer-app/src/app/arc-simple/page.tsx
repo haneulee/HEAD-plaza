@@ -40,24 +40,52 @@ const ArcSimple = () => {
   useEffect(() => {
     if (!myUniqueId) return;
 
+    console.log("=== Peer 연결 설정 시작 ===");
+    console.log("현재 상태:", {
+      myUniqueId,
+      currentStep,
+      hasRemoteStream: !!remoteStream,
+    });
+
     const peerConfig = getPeerConfig();
     const peer = new Peer(myUniqueId, peerConfig);
 
+    peer.on("open", (id) => {
+      console.log(`✅ Peer 연결 성공 (ID: ${id})`);
+    });
+
     peer.on("connection", (conn) => {
+      console.log("📥 새로운 연결 수신됨");
+
+      conn.on("open", () => {
+        console.log("✅ 연결 열림");
+      });
+
       conn.on("data", (data: any) => {
+        console.log("📥 데이터 수신:", data);
+
         if (data.type === "start-guide" && currentStep === "intro") {
+          console.log("🔄 guide 단계로 전환");
           setCurrentStep("guide");
+        } else if (data.type === "start-recording" && currentStep === "guide") {
+          console.log("🔄 recording 단계로 전환");
+          setCurrentStep("recording");
         } else if (data.type === "recorded-video") {
+          console.log("🔄 ending 단계로 전환");
           setRecordedVideoUrl(data.url);
           setCurrentStep("ending");
         } else if (data.type === "upload-status") {
-          // 업로드 상태에 따라 로딩 표시
+          console.log("📤 업로드 상태 변경:", data.status);
           if (data.status === "start") {
             setIsLoading(true);
           } else if (data.status === "complete" || data.status === "error") {
             setIsLoading(false);
           }
         }
+      });
+
+      conn.on("error", (err) => {
+        console.log("❌ 연결 에러:", err);
       });
     });
 
@@ -82,6 +110,7 @@ const ArcSimple = () => {
     });
 
     return () => {
+      console.log("🔄 Peer 연결 정리");
       peer.destroy();
     };
   }, [myUniqueId, currentStep]);
