@@ -35,7 +35,7 @@ export const ArcRecording = ({
   return (
     <div className="relative h-screen">
       {/* 프로그레스 바 */}
-      <div className="fixed top-0 left-0 w-full h-2">
+      <div className="fixed top-0 left-0 w-full h-2 z-50">
         <div
           className="h-full bg-white transition-all duration-300"
           style={{ width: `${progress}%` }}
@@ -59,16 +59,16 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative w-[1000px] overflow-hidden">
-          {/* 상단 가리개 */}
-          <div className="fixed top-0 left-0 w-full h-[40px] bg-black z-20" />
+        <div className="relative w-[1200px]" style={{ marginTop: "-100px" }}>
+          {/* 웹캠 상단 가리개 */}
+          <div className="absolute top-0 left-0 w-full h-[50px] bg-black z-10" />
           <video
             ref={callingVideoRef}
             className="rounded-lg"
             style={{
               transform: "rotate(-90deg)",
               objectFit: "cover",
-              width: "150%",
+              width: "100%",
             }}
             autoPlay
             playsInline

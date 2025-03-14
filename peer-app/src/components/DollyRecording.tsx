@@ -458,7 +458,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
 
         {/* 하단 웹캠 영상 (캔버스로 대체) */}
         <div className="overflow-hidden flex justify-center">
-          <div className="relative" style={{ marginTop: "-50px" }}>
+          <div className="relative" style={{ marginTop: "-20px" }}>
             <canvas
               ref={canvasRef}
               className="rounded-lg max-w-full h-auto"
@@ -470,10 +470,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
               height={canvasSize.height}
             />
             {/* 상단 20%를 가리는 오버레이 */}
-            <div
+            {/* <div
               className="absolute top-0 left-0 right-0 bg-black z-10 rounded-t-lg"
               style={{ height: "50px" }}
-            ></div>
+            ></div> */}
             <video
               ref={webcamRef}
               className="w-0 h-0 opacity-0"
