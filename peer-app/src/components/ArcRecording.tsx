@@ -56,15 +56,15 @@ export const ArcRecording = ({ onRecordingComplete, stream }: Props) => {
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="w-[900px] relative">
+        <div className="w-[1000px] relative">
           <video
             ref={callingVideoRef}
             className="rounded-lg"
             style={{
               transform: "rotate(-90deg)",
               objectFit: "cover",
-              width: "133.33%", // 4:3 비율을 유지하면서 회전을 고려한 너비
-              height: "75%", // 4:3 비율을 유지하면서 회전을 고려한 높이
+              width: "150%", // 4:3 비율을 유지하면서 회전을 고려한 너비
+              // height: "75%", // 4:3 비율을 유지하면서 회전을 고려한 높이
             }}
             autoPlay
             playsInline

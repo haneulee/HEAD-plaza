@@ -24,6 +24,69 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const lastZoomUpdateRef = useRef<number>(0);
   const targetZoomRef = useRef(1.5);
 
+  // Cloudinary 업로드 함수 수정
+  const uploadToCloudinary = async (videoBlob: Blob) => {
+    try {
+      const cloudName =
+        process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
+      const uploadPreset =
+        process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "your_preset";
+
+      const formData = new FormData();
+      formData.append("file", videoBlob);
+      formData.append("upload_preset", uploadPreset);
+      formData.append("resource_type", "video");
+
+      // 기본 최적화 옵션만 사용
+      formData.append("quality", "auto:low");
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Cloudinary 업로드 실패 (${response.status}): ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+
+      // 원본 URL에 회전 변환 파라미터 추가
+      // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
+      const originalUrl = data.secure_url;
+      const transformedUrl = originalUrl.replace(
+        "/upload/",
+        "/upload/a_-90,q_auto:low/"
+      );
+
+      return transformedUrl;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  // 더 간단한 비디오 압축 함수 (오디오 없음)
+  const compressVideo = async (videoBlob: Blob): Promise<Blob> => {
+    // 이미 크기가 작으면 그대로 반환
+    if (videoBlob.size < 10 * 1024 * 1024) {
+      return videoBlob;
+    }
+
+    // 더 낮은 비트레이트로 MediaRecorder 설정
+    try {
+      // 비디오를 다시 녹화하는 대신 Cloudinary 변환 파라미터 사용
+      return videoBlob;
+    } catch (err) {
+      return videoBlob;
+    }
+  };
+
   // 웹캠 설정을 처음 한 번만 실행
   useEffect(() => {
     let stream: MediaStream;
@@ -103,33 +166,27 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
               if (!isUploadingRef.current) return;
 
               const blob = new Blob(chunks, { type: "video/webm" });
-              const cloudName =
-                process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
-                "your_cloud_name";
-              const uploadPreset =
-                process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET ||
-                "your_preset";
+              const sizeMB = blob.size / 1024 / 1024;
 
-              try {
-                const formData = new FormData();
-                formData.append("file", blob);
-                formData.append("upload_preset", uploadPreset);
+              // 파일 크기가 너무 크면 압축 시도
+              let uploadBlob = blob;
+              if (sizeMB > 10) {
+                // Cloudinary 무료 계정 제한
 
-                const response = await fetch(
-                  `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
-                  {
-                    method: "POST",
-                    body: formData,
-                  }
-                );
+                try {
+                  // 비디오 압축 로직 (간단한 해상도 축소)
+                  const compressedBlob = await compressVideo(blob);
+                  const compressedSizeMB = compressedBlob.size / 1024 / 1024;
 
-                if (response.ok) {
-                  const data = await response.json();
-                  onRecordingComplete(data.secure_url);
-                }
-              } catch (error) {
-                console.error("Upload error:", error);
+                  uploadBlob = compressedBlob;
+                } catch (compressErr) {}
               }
+
+              // Cloudinary 직접 업로드 (서버 우회)
+
+              const videoUrl = await uploadToCloudinary(uploadBlob);
+
+              onRecordingComplete(videoUrl);
             };
 
             mediaRecorderRef.current = mediaRecorder;

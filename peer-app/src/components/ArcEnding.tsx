@@ -74,7 +74,7 @@ export const ArcEnding = ({ recordedVideoUrl, onReset }: Props) => {
             playsInline
             controls
           />
-          <p className="text-2xl text-center mt-4">The Wachowskis 1999</p>
+          <p className="text-2xl text-center mt-4">The Wachowskis, 1999</p>
         </div>
       </div>
 
