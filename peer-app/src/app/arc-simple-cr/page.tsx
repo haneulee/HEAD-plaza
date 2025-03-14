@@ -152,7 +152,7 @@ const ArcSimpleCamera = () => {
 
   const startRecording = (stream: MediaStream) => {
     recordedChunksRef.current = [];
-    setRecordingDuration(0); // 녹화 시간 초기화
+    setRecordingDuration(0);
 
     // 지원하는 MIME 타입 확인
     const mimeTypes = [
@@ -431,7 +431,6 @@ const ArcSimpleCamera = () => {
       const data = await response.json();
 
       // 원본 URL에 회전 변환 파라미터 추가
-      // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
       const originalUrl = data.secure_url;
       const transformedUrl = originalUrl.replace(
         "/upload/",
