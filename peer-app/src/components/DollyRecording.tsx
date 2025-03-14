@@ -19,6 +19,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const [zoomScale, setZoomScale] = useState(MAX_ZOOM);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
+  const cropTop = 0.2; // 상단에서 20% 자르기 (고정값으로 변경)
   const [isLoading, setIsLoading] = useState(false);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null); // 녹화 시간 제한을 위한 타이머
   const MAX_RECORDING_TIME = 60000; // 최대 녹화 시간 (1분 = 60000ms)
@@ -133,13 +134,18 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
                 ctx.scale(zoomScale, zoomScale);
                 ctx.translate(-canvas.width / 2, -canvas.height / 2);
 
-                // 비디오 프레임 그리기
+                // 상단 부분을 자르고 나머지 부분을 확대하여 캔버스를 채우도록 수정
+                const cropHeight = webcamRef.current.videoHeight * cropTop;
                 ctx.drawImage(
                   webcamRef.current,
                   0,
+                  cropHeight,
+                  webcamRef.current.videoWidth,
+                  webcamRef.current.videoHeight - cropHeight, // 소스 영역 (상단 부분 제외)
+                  0,
                   0,
                   canvas.width,
-                  canvas.height
+                  canvas.height // 대상 영역 (전체 캔버스)
                 );
 
                 ctx.restore();
@@ -386,7 +392,20 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // 상단 부분을 자르고 나머지 부분을 확대하여 캔버스를 채우도록 수정
+      const cropHeight = video.videoHeight * cropTop;
+      ctx.drawImage(
+        video,
+        0,
+        cropHeight,
+        video.videoWidth,
+        video.videoHeight - cropHeight, // 소스 영역 (상단 부분 제외)
+        0,
+        0,
+        canvas.width,
+        canvas.height // 대상 영역 (전체 캔버스)
+      );
+
       ctx.restore();
 
       animationFrame = requestAnimationFrame(drawFrame);
@@ -397,7 +416,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
     return () => {
       cancelAnimationFrame(animationFrame);
     };
-  }, [zoomScale]);
+  }, [zoomScale, cropTop]);
 
   return (
     <div
@@ -439,23 +458,30 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
 
         {/* 하단 웹캠 영상 (캔버스로 대체) */}
         <div className="overflow-hidden flex justify-center">
-          <canvas
-            ref={canvasRef}
-            className="rounded-lg max-w-full h-auto"
-            style={{
-              width: "100%",
-              maxWidth: "1920px", // 디스플레이 크기는 FHD로 제한
-            }}
-            width={canvasSize.width}
-            height={canvasSize.height}
-          />
-          <video
-            ref={webcamRef}
-            className="w-0 h-0 opacity-0"
-            autoPlay
-            playsInline
-            muted
-          />
+          <div className="relative">
+            <canvas
+              ref={canvasRef}
+              className="rounded-lg max-w-full h-auto"
+              style={{
+                width: "100%",
+                maxWidth: "1920px", // 디스플레이 크기는 FHD로 제한
+              }}
+              width={canvasSize.width}
+              height={canvasSize.height}
+            />
+            {/* 상단 20%를 가리는 오버레이 */}
+            <div
+              className="absolute top-0 left-0 right-0 bg-black z-10 rounded-t-lg"
+              style={{ height: "20%" }}
+            ></div>
+            <video
+              ref={webcamRef}
+              className="w-0 h-0 opacity-0"
+              autoPlay
+              playsInline
+              muted
+            />
+          </div>
         </div>
       </div>
 
