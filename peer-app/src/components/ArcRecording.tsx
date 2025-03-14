@@ -62,14 +62,12 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative w-2/3">
-          {/* 웹캠 상단 가리개 */}
-          <div className="absolute top-0 left-0 w-full h-[20%] bg-black z-10" />
+        <div className="relative w-[1000px]">
           <video
             ref={callingVideoRef}
             className="rounded-lg"
             style={{
-              transform: "rotate(-90deg) translateY(-25%) translateX(30%)",
+              transform: "rotate(-90deg)",
               objectFit: "cover",
               width: "150%",
             }}
