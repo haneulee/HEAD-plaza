@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 
 import { ArcEnding } from "@/components/ArcEnding";
 import { ArcIntro } from "@/components/ArcIntro";
@@ -18,6 +17,7 @@ const ArcSimple = () => {
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string>("");
   const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
   const [myUniqueId, setMyUniqueId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // URL에 ID 파라미터 추가하는 함수
   const updateUrlWithId = (id: string) => {
@@ -50,6 +50,13 @@ const ArcSimple = () => {
         } else if (data.type === "recorded-video") {
           setRecordedVideoUrl(data.url);
           setCurrentStep("ending");
+        } else if (data.type === "upload-status") {
+          // 업로드 상태에 따라 로딩 표시
+          if (data.status === "start") {
+            setIsLoading(true);
+          } else if (data.status === "complete" || data.status === "error") {
+            setIsLoading(false);
+          }
         }
       });
     });
@@ -95,13 +102,12 @@ const ArcSimple = () => {
       {currentStep === "intro" && (
         <ArcIntro onNext={() => setCurrentStep("guide")} />
       )}
-      {currentStep === "guide" && (
-        <ArcUserGuide onNext={() => setCurrentStep("recording")} />
-      )}
+      {currentStep === "guide" && <ArcUserGuide />}
       {currentStep === "recording" && (
         <ArcRecording
           onRecordingComplete={handleRecordingComplete}
           stream={remoteStream}
+          isLoading={isLoading}
         />
       )}
       {currentStep === "ending" && (

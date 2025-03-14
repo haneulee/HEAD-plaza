@@ -293,6 +293,14 @@ const ArcSimpleCamera = () => {
       return;
     }
 
+    // guide에서 recording으로 넘어가도록 메시지 전송
+    const conn = peerInstance.connect(viewerId);
+    conn.on("open", () => {
+      conn.send({
+        type: "start-recording",
+      });
+    });
+
     setCallStatus("미디어 스트림 요청 중...");
 
     safeGetUserMedia()
@@ -406,6 +414,17 @@ const ArcSimpleCamera = () => {
   // Cloudinary 업로드 함수 수정
   const uploadToCloudinary = async (videoBlob: Blob) => {
     try {
+      // 업로드 시작을 알림
+      if (peerInstance && viewerId) {
+        const conn = peerInstance.connect(viewerId);
+        conn.on("open", () => {
+          conn.send({
+            type: "upload-status",
+            status: "start",
+          });
+        });
+      }
+
       addDebugLog("Cloudinary에 직접 업로드 시도...");
       const cloudName =
         process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "your_cloud_name";
@@ -437,6 +456,17 @@ const ArcSimpleCamera = () => {
 
       const data = await response.json();
 
+      // 업로드 완료를 알림
+      if (peerInstance && viewerId) {
+        const conn = peerInstance.connect(viewerId);
+        conn.on("open", () => {
+          conn.send({
+            type: "upload-status",
+            status: "complete",
+          });
+        });
+      }
+
       // 원본 URL에 회전 변환 파라미터 추가
       const originalUrl = data.secure_url;
       const transformedUrl = originalUrl.replace(
@@ -447,7 +477,16 @@ const ArcSimpleCamera = () => {
       addDebugLog(`변환된 URL: ${transformedUrl}`);
       return transformedUrl;
     } catch (error) {
-      addDebugLog(`Cloudinary 업로드 오류: ${error}`);
+      // 업로드 실패를 알림
+      if (peerInstance && viewerId) {
+        const conn = peerInstance.connect(viewerId);
+        conn.on("open", () => {
+          conn.send({
+            type: "upload-status",
+            status: "error",
+          });
+        });
+      }
       throw error;
     }
   };

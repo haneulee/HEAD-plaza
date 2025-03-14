@@ -1,8 +1,6 @@
-interface Props {
-  onNext: () => void;
-}
+interface Props {}
 
-export const ArcUserGuide = ({ onNext }: Props) => {
+export const ArcUserGuide = () => {
   return (
     <div className="relative aspect-video flex-shrink-0 mb-4">
       <video
@@ -11,7 +9,6 @@ export const ArcUserGuide = ({ onNext }: Props) => {
         muted
         playsInline
         src="/guide/arc-user-guide.mp4" // user guide video
-        onEnded={onNext} // 비디오 재생이 끝나면 다음 단계로
       />
     </div>
   );

@@ -4,10 +4,15 @@ import Peer from "peerjs";
 
 interface Props {
   onRecordingComplete: (videoUrl: string) => void;
+  isLoading?: boolean; // 로딩 상태 prop 추가
   stream?: MediaStream; // 스트림을 props로 받음
 }
 
-export const ArcRecording = ({ onRecordingComplete, stream }: Props) => {
+export const ArcRecording = ({
+  onRecordingComplete,
+  isLoading,
+  stream,
+}: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const callingVideoRef = useRef<HTMLVideoElement>(null);
   const [progress, setProgress] = useState(0);
@@ -30,7 +35,7 @@ export const ArcRecording = ({ onRecordingComplete, stream }: Props) => {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="relative h-screen">
       {/* 프로그레스 바 */}
       <div className="fixed top-0 left-0 w-full h-2">
         <div
@@ -72,6 +77,13 @@ export const ArcRecording = ({ onRecordingComplete, stream }: Props) => {
           />
         </div>
       </div>
+
+      {/* 로딩 오버레이 */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <img src="/loading.svg" alt="Loading..." className="w-16 h-16" />
+        </div>
+      )}
     </div>
   );
 };
