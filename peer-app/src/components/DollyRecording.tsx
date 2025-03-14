@@ -16,13 +16,10 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const previousMouseXRef = useRef<number | null>(null);
   const TRIGGER_ZONE = 20; // 카운트다운 트리거 영역 설정
   const [zoomScale, setZoomScale] = useState(1.5);
-  const MAX_ZOOM = 3.5; // 최대 줌 스케일 (왼쪽)
-  const MIN_ZOOM = 1.5; // 최소 줌 스케일 (오른쪽)
+  const MIN_ZOOM = 1.5; // x = 0일 때의 줌 값
+  const MAX_ZOOM = 3.5; // x = window.innerWidth일 때의 줌 값
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
-  const animationFrameRef = useRef<number>();
-  const lastZoomUpdateRef = useRef<number>(0);
-  const targetZoomRef = useRef(1.5);
 
   // Cloudinary 업로드 함수 수정
   const uploadToCloudinary = async (videoBlob: Blob) => {
@@ -60,12 +57,8 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       // 원본 URL에 회전 변환 파라미터 추가
       // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
       const originalUrl = data.secure_url;
-      const transformedUrl = originalUrl.replace(
-        "/upload/",
-        "/upload/a_-90,q_auto:low/"
-      );
 
-      return transformedUrl;
+      return originalUrl;
     } catch (error) {
       throw error;
     }
@@ -150,22 +143,43 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
             drawFrame();
 
             // Canvas 스트림 생성
-            canvasStream = canvas.captureStream(60); // 60fps로 증가
+            canvasStream = canvas.captureStream(60);
 
-            // 녹화 설정
-            const mediaRecorder = new MediaRecorder(canvasStream);
+            // MediaRecorder 옵션 설정
+            const options = {
+              mimeType: "video/mp4; codecs=h264",
+              videoBitsPerSecond: 2500000, // 2.5Mbps
+            };
+
+            // 지원되는 MIME 타입 확인 및 설정
+            if (MediaRecorder.isTypeSupported("video/mp4; codecs=h264")) {
+              mediaRecorderRef.current = new MediaRecorder(
+                canvasStream,
+                options
+              );
+            } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+              mediaRecorderRef.current = new MediaRecorder(canvasStream, {
+                mimeType: "video/mp4",
+              });
+            } else {
+              // Fallback to default (probably webm)
+              console.log("MP4 not supported, falling back to default format");
+              mediaRecorderRef.current = new MediaRecorder(canvasStream);
+            }
+
             const chunks: BlobPart[] = [];
 
-            mediaRecorder.ondataavailable = (e) => {
+            mediaRecorderRef.current.ondataavailable = (e) => {
               if (e.data.size > 0) {
                 chunks.push(e.data);
               }
             };
 
-            mediaRecorder.onstop = async () => {
+            mediaRecorderRef.current.onstop = async () => {
               if (!isUploadingRef.current) return;
 
-              const blob = new Blob(chunks, { type: "video/webm" });
+              // Blob 생성 시 MP4 MIME 타입 지정
+              const blob = new Blob(chunks, { type: "video/mp4" });
               const sizeMB = blob.size / 1024 / 1024;
 
               // 파일 크기가 너무 크면 압축 시도
@@ -189,8 +203,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
               onRecordingComplete(videoUrl);
             };
 
-            mediaRecorderRef.current = mediaRecorder;
-            mediaRecorder.start();
+            mediaRecorderRef.current.start();
           }
         }
       } catch (err) {
@@ -215,63 +228,36 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   }, []);
 
   // 마우스 이벤트 핸들러
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      const currentX = e.clientX;
-      const windowWidth = window.innerWidth;
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const divWidth = rect.width;
 
-      // X 위치를 0-1 사이의 값으로 정규화 (오른쪽이 최대값)
-      const normalizedX = currentX / windowWidth;
+    // 직접 줌 값 계산 (0부터 divWidth까지의 x값을 MIN_ZOOM부터 MAX_ZOOM까지 매핑)
+    const newZoom = MIN_ZOOM + (currentX / divWidth) * (MAX_ZOOM - MIN_ZOOM);
 
-      // 목표 줌 값 설정
-      targetZoomRef.current = MIN_ZOOM + normalizedX * (MAX_ZOOM - MIN_ZOOM);
+    // 디버깅 로그
+    console.log("Mouse move event:", {
+      currentX,
+      divWidth,
+      newZoom,
+      currentZoom: zoomScale,
+      showOverlay,
+      isInTriggerZone: currentX <= TRIGGER_ZONE,
+    });
 
-      // 부드러운 줌 효과를 위한 애니메이션
-      if (!animationFrameRef.current) {
-        const updateZoom = () => {
-          const now = performance.now();
-          const elapsed = now - lastZoomUpdateRef.current;
+    setZoomScale(newZoom);
 
-          // 60fps 기준으로 프레임 제한
-          if (elapsed > 16.67) {
-            // 1000ms / 60fps ≈ 16.67ms
-            const currentZoom = zoomScale;
-            const diff = targetZoomRef.current - currentZoom;
-            const newZoom = currentZoom + diff * 0.2; // 부드러운 보간
-
-            setZoomScale(newZoom);
-            lastZoomUpdateRef.current = now;
-          }
-
-          if (Math.abs(targetZoomRef.current - zoomScale) > 0.01) {
-            animationFrameRef.current = requestAnimationFrame(updateZoom);
-          } else {
-            animationFrameRef.current = undefined;
-          }
-        };
-
-        animationFrameRef.current = requestAnimationFrame(updateZoom);
-      }
-
-      // 트리거 영역에서 카운트다운 시작
-      if (currentX <= TRIGGER_ZONE && !showOverlay) {
-        setShowOverlay(true);
-        startCountdownAndRecording();
-      } else if (currentX > TRIGGER_ZONE && showOverlay) {
-        cancelCountdown();
-      }
-
-      previousMouseXRef.current = currentX;
-    };
-
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [showOverlay, zoomScale]);
+    // 왼쪽 트리거 영역 체크 (카운트다운 오버레이)
+    if (currentX <= TRIGGER_ZONE && !showOverlay) {
+      console.log("Starting countdown...");
+      setShowOverlay(true);
+      startCountdownAndRecording();
+    } else if (currentX > TRIGGER_ZONE && showOverlay) {
+      console.log("Canceling countdown...");
+      cancelCountdown();
+    }
+  };
 
   const cancelCountdown = () => {
     // 카운트다운 취소
@@ -363,7 +349,11 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   }, [zoomScale]);
 
   return (
-    <div className="flex flex-col h-screen">
+    <div
+      className="flex flex-col h-screen relative"
+      onMouseMove={handleMouseMove}
+      style={{ cursor: "pointer" }}
+    >
       {/* 프로그레스 바 */}
       <div className="fixed top-0 left-0 w-full h-2">
         <div
@@ -410,9 +400,9 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
         </div>
       </div>
 
-      {/* 오버레이 */}
+      {/* 오버레이 (z-index 추가) */}
       {showOverlay && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="text-center text-white">
             <p className="text-4xl mb-4">
               Your dolly zoom will be completed in {countdown}.
