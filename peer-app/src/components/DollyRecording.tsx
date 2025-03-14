@@ -433,15 +433,15 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       </div>
 
       {/* 녹화 시간 표시 */}
-      {recordingTime > 0 && (
+      {/* {recordingTime > 0 && (
         <div className="fixed top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center z-50">
           <div className="w-3 h-3 bg-red-400 rounded-full mr-2 animate-pulse"></div>
           <span>{Math.floor(recordingTime / 1000)}s / 60s</span>
         </div>
-      )}
+      )} */}
 
       {/* 샘플 비디오와 웹캠 컨테이너 */}
-      <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
+      <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden mt-[30px]">
         {/* 상단 샘플 비디오 */}
         <div className="w-1/4">
           <video
@@ -462,7 +462,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
             {/* 하단 20px를 가리는 오버레이 */}
             <div
               className="absolute bottom-0 left-0 right-0 bg-black z-10 rounded-b-lg"
-              style={{ height: "80px" }}
+              style={{ height: "100px" }}
             ></div>
             <canvas
               ref={canvasRef}
