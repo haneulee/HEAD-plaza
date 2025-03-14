@@ -19,7 +19,7 @@ export const ArcIntro = ({ onNext }: Props) => {
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
         <h1 className="text-8xl font-bold mb-4">Action!</h1>
         <p className="text-2xl mb-2">Make your arc shot</p>
-        <p className="text-xl">Move the camera to start</p>
+        <p className="text-xl">Touch the camera screen to start</p>
       </div>
     </div>
   );

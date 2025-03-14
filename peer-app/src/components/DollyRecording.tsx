@@ -13,13 +13,13 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
   const [countdown, setCountdown] = useState(5);
   const countIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isUploadingRef = useRef<boolean>(false);
-  const previousMouseXRef = useRef<number | null>(null);
   const TRIGGER_ZONE = 20; // 카운트다운 트리거 영역 설정
-  const [zoomScale, setZoomScale] = useState(1.5);
   const MIN_ZOOM = 1.5; // x = 0일 때의 줌 값
   const MAX_ZOOM = 3.5; // x = window.innerWidth일 때의 줌 값
+  const [zoomScale, setZoomScale] = useState(MAX_ZOOM);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize] = useState({ width: 3840, height: 2160 }); // 16:9 4K resolution
+  const [isLoading, setIsLoading] = useState(false);
 
   // Cloudinary 업로드 함수 수정
   const uploadToCloudinary = async (videoBlob: Blob) => {
@@ -53,6 +53,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       }
 
       const data = await response.json();
+      setIsLoading(false); // 업로드 완료 시 로딩 숨김
 
       // 원본 URL에 회전 변환 파라미터 추가
       // 형식: https://res.cloudinary.com/cloud_name/video/upload/a_-90/video_id
@@ -60,6 +61,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
 
       return originalUrl;
     } catch (error) {
+      setIsLoading(false); // 에러 발생 시에도 로딩 숨김
       throw error;
     }
   };
@@ -299,6 +301,7 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
       mediaRecorderRef.current &&
       mediaRecorderRef.current.state === "recording"
     ) {
+      setIsLoading(true); // 업로드 시작 시 로딩 표시
       isUploadingRef.current = true;
       mediaRecorderRef.current.stop();
     }
@@ -400,8 +403,16 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
         </div>
       </div>
 
-      {/* 오버레이 (z-index 추가) */}
-      {showOverlay && (
+      {/* 로딩 오버레이 */}
+      {isLoading ? (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <img
+            src="/loading.svg"
+            alt="Loading..."
+            className="w-16 h-16" // 로딩 아이콘 크기 조정
+          />
+        </div>
+      ) : showOverlay ? (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="text-center text-white">
             <p className="text-4xl mb-4">
@@ -410,6 +421,8 @@ export const DollyRecording = ({ onRecordingComplete }: Props) => {
             <p className="text-2xl">Don't move the camera to get your movie.</p>
           </div>
         </div>
+      ) : (
+        ""
       )}
     </div>
   );
