@@ -8,27 +8,34 @@ export default function Home() {
 
         <div className="mb-12">
           <p className="text-lg mb-6">
-            'Action!' is an interactive installation that immerses visitor in
-            cinematic camera techniques. Located at Plaza Cinema, the setup
-            features four model worlds, each showcasing a different technique:
-            Dolly Zoom, Mirror Shot, Arc Shot, and Zero-Gravity Shot.
+            ‘Action!’ is an interactive installation that immerses visitors in a
+            hands-on experience of camera movements in cinema. The setup
+            features multiple behind-the-scene filming studios, each showcasing
+            a cinematic technique such as Dolly Zoom, Arc Shot, Zero-Gravity
+            Shot and Mirror Shot.
           </p>
           <p className="text-lg mb-6">
-            Visitors can select a cinematic technique and click the 'Action!'
-            button on the camera screen and move the camera on a guided track to
-            replicate the movement. A dual-screen setup displays a classic movie
-            scene alongside the visitor's real-time recording, allowing direct
-            comparison.
+            Cameras in filmmaking are more than just recording devices— they are
+            storytelling tools that shape what audiences focus on. This
+            installation allows audiences to step into the role of the cameraman
+            by exploring classic movie clips demonstrating each technique. By
+            physically playing with the camera, they can simu- late professional
+            cinematographic effects. Their real-time footage is displayed
+            alongside the original movie clip, offering a direct visual
+            comparison and a deeper understanding of the techniques.
           </p>
           <p className="text-lg mb-6">
-            They can record, download, and share their footage. Designed for
-            accessibility, the installation fosters engagement with cinema
-            through hands-on exploration.
+            As an engaging and educational experience, ‘Action!’ makes the
+            production part of cinema accessible to a general audience. Au-
+            diences not only gain insight into the technical aspects of filmma-
+            king but also leave with their own recorded movie clips, allowing
+            them to share their creations and continue the conversation beyond
+            the exhibition space.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          <Link href="/dolly-zoom" className="group">
+          <Link href="/dolly-simple" className="group">
             <div className="border border-gray-700 rounded-lg p-6 hover:border-white transition-colors">
               <h2 className="text-2xl font-semibold mb-4 group-hover:text-yellow-400">
                 Dolly Zoom
@@ -52,7 +59,7 @@ export default function Home() {
             </div>
           </Link> */}
 
-          <Link href="/arc-shot" className="group">
+          <Link href="/arc-simple" className="group">
             <div className="border border-gray-700 rounded-lg p-6 hover:border-white transition-colors">
               <h2 className="text-2xl font-semibold mb-4 group-hover:text-yellow-400">
                 Arc Shot
@@ -63,7 +70,7 @@ export default function Home() {
             </div>
           </Link>
 
-          <Link href="/zero-gravity" className="group">
+          {/* <Link href="/zero-gravity" className="group">
             <div className="border border-gray-700 rounded-lg p-6 hover:border-white transition-colors">
               <h2 className="text-2xl font-semibold mb-4 group-hover:text-yellow-400">
                 Zero-Gravity Shot
@@ -72,7 +79,7 @@ export default function Home() {
                 Simulate weightlessness with our zero-gravity camera technique.
               </p>
             </div>
-          </Link>
+          </Link> */}
         </div>
       </div>
     </main>
