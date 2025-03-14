@@ -47,7 +47,7 @@ export const ArcRecording = ({
       {/* 샘플 비디오와 웹캠 컨테이너 */}
       <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
         {/* 상단 샘플 비디오 */}
-        <div className="w-1/4 -mt-8">
+        <div className="w-1/4 fixed top-4 left-1/2 -translate-x-1/2 z-10">
           <video
             ref={videoRef}
             className="w-full h-full object-cover rounded-lg"
@@ -61,15 +61,14 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative w-1/2">
+        <div className="relative w-2/3 mt-16">
           <video
             ref={callingVideoRef}
             className="rounded-lg"
             style={{
-              transform: "rotate(-90deg)",
+              transform: "rotate(-90deg) translateY(-25%)",
               objectFit: "cover",
-              width: "150%", // 4:3 비율을 유지하면서 회전을 고려한 너비
-              // height: "75%", // 4:3 비율을 유지하면서 회전을 고려한 높이
+              width: "150%",
             }}
             autoPlay
             playsInline
