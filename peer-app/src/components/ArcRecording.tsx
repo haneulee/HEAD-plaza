@@ -44,9 +44,6 @@ export const ArcRecording = ({
 
       {/* 샘플 비디오와 웹캠 컨테이너 */}
       <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
-        {/* 상단 가리개 */}
-        <div className="fixed top-0 left-0 w-full h-[20vh] bg-black z-20" />
-
         {/* 상단 샘플 비디오 */}
         <div className="w-1/4 fixed top-4 left-1/2 -translate-x-1/2 z-10">
           <video
@@ -62,7 +59,9 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative w-[1000px]">
+        <div className="relative w-[1000px] overflow-hidden">
+          {/* 상단 가리개 */}
+          <div className="fixed top-0 left-0 w-full h-[40px] bg-black z-20" />
           <video
             ref={callingVideoRef}
             className="rounded-lg"
