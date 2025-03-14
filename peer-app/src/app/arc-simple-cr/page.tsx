@@ -536,18 +536,51 @@ const ArcSimpleCamera = () => {
 
   const handleTouch = () => {
     if (!isStreaming && peerInstance) {
-      const conn = peerInstance.connect(viewerId);
-      conn.on("open", () => {
-        conn.send({
-          type: "start-guide",
+      addDebugLog(`터치 이벤트 발생: viewerId=${viewerId}`);
+
+      if (!viewerId) {
+        addDebugLog("viewerId가 없습니다");
+        return;
+      }
+
+      try {
+        const conn = peerInstance.connect(viewerId);
+
+        conn.on("error", (err) => {
+          addDebugLog(`연결 에러: ${err}`);
         });
-        handleCall(); // 카메라 스트리밍 시작
-      });
+
+        conn.on("open", () => {
+          addDebugLog("연결 성공, start-guide 메시지 전송");
+          conn.send({
+            type: "start-guide",
+          });
+          handleCall(); // 카메라 스트리밍 시작
+        });
+
+        // 5초 후에도 연결이 안되면 타임아웃
+        setTimeout(() => {
+          if (conn.open === false) {
+            addDebugLog("연결 타임아웃");
+            conn.close();
+          }
+        }, 5000);
+      } catch (error) {
+        addDebugLog(`터치 핸들러 에러: ${error}`);
+      }
+    } else {
+      addDebugLog(
+        `터치 무시됨: isStreaming=${isStreaming}, peerInstance=${!!peerInstance}`
+      );
     }
   };
 
   return (
-    <div className="relative h-[100dvh] w-[100dvw]" onTouchStart={handleTouch}>
+    <div
+      className="relative h-[100dvh] w-[100dvw]"
+      onTouchStart={handleTouch}
+      onClick={handleTouch} // 클릭 이벤트도 추가
+    >
       <video
         style={{
           width: "100%",
@@ -584,7 +617,7 @@ const ArcSimpleCamera = () => {
       )}
 
       {/* 디버깅 정보와 로그를 함께 표시 */}
-      {/* <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
+      <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded text-sm max-w-[80%] overflow-hidden">
         <div>연결 상태: {connectionStatus}</div>
         <div>통화 상태: {callStatus}</div>
         <div>스트리밍: {isStreaming ? "켜짐" : "꺼짐"}</div>
@@ -600,7 +633,7 @@ const ArcSimpleCamera = () => {
             </div>
           ))}
         </div>
-      </div> */}
+      </div>
     </div>
   );
 };
