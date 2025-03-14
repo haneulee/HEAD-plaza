@@ -5,11 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 import { DollyEnding } from "@/components/DollyEnding";
 import { DollyIntro } from "@/components/DollyIntro";
 import { DollyRecording } from "@/components/DollyRecording";
-import { DollyUserGuide } from "@/components/DollyUserGuide";
 
 const DollySimple = () => {
   const [currentStep, setCurrentStep] = useState<
-    "intro" | "guide" | "recording" | "ending"
+    "intro" | "recording" | "ending"
   >("intro");
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string>("");
 
@@ -17,15 +16,7 @@ const DollySimple = () => {
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
       if (currentStep === "intro") {
-        setCurrentStep("guide");
-      }
-
-      // guide 단계에서 마우스가 오른쪽 끝에 도달하면 recording으로 전환
-      if (currentStep === "guide") {
-        const screenWidth = window.innerWidth;
-        if (e.clientX >= screenWidth - 10) {
-          setCurrentStep("recording");
-        }
+        setCurrentStep("recording");
       }
     },
     [currentStep]
@@ -54,10 +45,7 @@ const DollySimple = () => {
   return (
     <div className="flex flex-col h-screen bg-black text-white">
       {currentStep === "intro" && (
-        <DollyIntro onNext={() => setCurrentStep("guide")} />
-      )}
-      {currentStep === "guide" && (
-        <DollyUserGuide onNext={() => setCurrentStep("recording")} />
+        <DollyIntro onNext={() => setCurrentStep("recording")} />
       )}
       {currentStep === "recording" && (
         <DollyRecording onRecordingComplete={handleRecordingComplete} />
