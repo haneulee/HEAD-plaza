@@ -61,7 +61,7 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative">
+        <div className="relative w-1/2">
           <video
             ref={callingVideoRef}
             className="rounded-lg"
