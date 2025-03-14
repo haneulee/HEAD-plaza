@@ -56,10 +56,10 @@ export const ArcRecording = ({ onRecordingComplete, stream }: Props) => {
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="w-full max-w-[1200px] aspect-[4/3] relative">
+        <div className="w-[900px] relative">
           <video
             ref={callingVideoRef}
-            className="rounded-lg absolute"
+            className="rounded-lg"
             style={{
               transform: "rotate(-90deg)",
               objectFit: "cover",

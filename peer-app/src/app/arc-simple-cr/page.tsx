@@ -154,35 +154,40 @@ const ArcSimpleCamera = () => {
     recordedChunksRef.current = [];
     setRecordingDuration(0);
 
-    // 지원하는 MIME 타입 확인
+    // Safari를 위한 MIME 타입 설정
     const mimeTypes = [
-      "video/webm;codecs=vp8", // vp8이 일반적으로 더 작은 파일 크기
-      "video/webm",
       "video/mp4",
-      "video/webm;codecs=vp9",
+      "video/mp4;codecs=h264",
+      "video/webm;codecs=h264",
+      "video/webm",
     ];
 
     let mimeType = "";
     for (const type of mimeTypes) {
       if (MediaRecorder.isTypeSupported(type)) {
         mimeType = type;
-        addDebugLog(`지원하는 MIME 타입: ${type}`);
+        addDebugLog(`선택된 MIME 타입: ${type}`);
         break;
       }
     }
 
     if (!mimeType) {
-      addDebugLog("지원하는 비디오 MIME 타입을 찾을 수 없습니다.");
-      return;
+      // Safari fallback - MIME 타입 지정하지 않음
+      addDebugLog("지원되는 MIME 타입이 없어 기본값 사용");
     }
 
     try {
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeType,
-        videoBitsPerSecond: 800000, // 800 Kbps로 더 낮게 제한 (파일 크기 감소)
-      });
+      const options: MediaRecorderOptions = {
+        videoBitsPerSecond: 2000000, // 2Mbps
+      };
 
-      // 5초마다 데이터 청크 생성
+      if (mimeType) {
+        options.mimeType = mimeType;
+      }
+
+      const mediaRecorder = new MediaRecorder(stream, options);
+
+      // 더 작은 청크 사이즈로 설정 (1초마다)
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
@@ -192,9 +197,9 @@ const ArcSimpleCamera = () => {
         }
       };
 
-      mediaRecorder.start(5000); // 5초마다 청크 생성
+      mediaRecorder.start(1000); // 1초마다 청크 생성
       mediaRecorderRef.current = mediaRecorder;
-      addDebugLog("녹화가 시작되었습니다. (비트레이트: 800Kbps)");
+      addDebugLog(`녹화 시작됨 (${mediaRecorder.mimeType || "기본 포맷"})`);
 
       // 1분 타이머 설정
       const timer = window.setInterval(() => {
@@ -278,7 +283,7 @@ const ArcSimpleCamera = () => {
   };
 
   const handleCall = () => {
-    addDebugLog("handleCall 시작");
+    addDebugLog("Action 버튼 클릭됨");
 
     if (!peerInstance) {
       addDebugLog("peerInstance가 없음");
@@ -299,6 +304,7 @@ const ArcSimpleCamera = () => {
           addDebugLog("비디오 요소에 스트림 연결됨");
         }
 
+        // 스트리밍 시작
         const call = peerInstance.call(viewerId, stream);
         addDebugLog("피어 호출 시도: " + viewerId);
 
@@ -312,6 +318,7 @@ const ArcSimpleCamera = () => {
         setCallStatus("스트리밍 시작됨");
         addDebugLog("스트리밍 상태 true로 설정");
 
+        // 녹화 시작
         startRecording(stream);
         addDebugLog("녹화 시작됨");
 
@@ -533,6 +540,7 @@ const ArcSimpleCamera = () => {
     };
   }, [recordingTimer]);
 
+  // 터치/클릭 핸들러는 이제 연결만 담당
   const handleTouch = () => {
     if (!isStreaming && peerInstance) {
       addDebugLog(`터치 이벤트 발생: viewerId=${viewerId}`);
@@ -554,23 +562,10 @@ const ArcSimpleCamera = () => {
           conn.send({
             type: "start-guide",
           });
-          handleCall(); // 카메라 스트리밍 시작
         });
-
-        // 5초 후에도 연결이 안되면 타임아웃
-        setTimeout(() => {
-          if (conn.open === false) {
-            addDebugLog("연결 타임아웃");
-            conn.close();
-          }
-        }, 5000);
       } catch (error) {
         addDebugLog(`터치 핸들러 에러: ${error}`);
       }
-    } else {
-      addDebugLog(
-        `터치 무시됨: isStreaming=${isStreaming}, peerInstance=${!!peerInstance}`
-      );
     }
   };
 
