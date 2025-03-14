@@ -4,7 +4,7 @@ interface Props {
 
 export const ArcIntro = ({ onNext }: Props) => {
   return (
-    <div className="relative aspect-video flex-shrink-0 mb-4">
+    <div className="relative aspect-video flex-shrink-0 overflow-hidden">
       <video
         className="w-full h-full rounded-lg object-cover opacity-50"
         autoPlay
