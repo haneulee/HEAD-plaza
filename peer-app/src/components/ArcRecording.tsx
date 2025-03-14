@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-import Peer from "peerjs";
-
 interface Props {
   onRecordingComplete: (videoUrl: string) => void;
   isLoading?: boolean; // 로딩 상태 prop 추가
@@ -46,6 +44,9 @@ export const ArcRecording = ({
 
       {/* 샘플 비디오와 웹캠 컨테이너 */}
       <div className="flex flex-col items-center justify-center gap-4 p-4 overflow-hidden">
+        {/* 상단 가리개 */}
+        <div className="fixed top-0 left-0 w-full h-[20vh] bg-black z-20" />
+
         {/* 상단 샘플 비디오 */}
         <div className="w-1/4 fixed top-4 left-1/2 -translate-x-1/2 z-10">
           <video
@@ -61,12 +62,14 @@ export const ArcRecording = ({
         </div>
 
         {/* 하단 웹캠 영상 */}
-        <div className="relative w-2/3 mt-16">
+        <div className="relative w-2/3">
+          {/* 웹캠 상단 가리개 */}
+          <div className="absolute top-0 left-0 w-full h-[20%] bg-black z-10" />
           <video
             ref={callingVideoRef}
             className="rounded-lg"
             style={{
-              transform: "rotate(-90deg) translateY(-25%)",
+              transform: "rotate(-90deg) translateY(-25%) translateX(30%)",
               objectFit: "cover",
               width: "150%",
             }}
