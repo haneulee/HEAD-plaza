@@ -1,47 +1,83 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
+import { ArcEnding } from "@/components/ArcEnding";
 import { ArcIntro } from "@/components/ArcIntro";
 import { ArcRecording } from "@/components/ArcRecording";
 import { ArcUserGuide } from "@/components/ArcUserGuide";
-import { DollyEnding } from "@/components/DollyEnding";
-import { DollyIntro } from "@/components/DollyIntro";
-import { DollyRecording } from "@/components/DollyRecording";
-import { DollyUserGuide } from "@/components/DollyUserGuide";
+import Peer from "peerjs";
+import { generateUniqueId } from "@/utils/generateUniqueId";
+import getPeerConfig from "@/utils/getPeerConfig";
 
-const DollySimple = () => {
+const ArcSimple = () => {
   const [currentStep, setCurrentStep] = useState<
     "intro" | "guide" | "recording" | "ending"
   >("intro");
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string>("");
+  const [remoteStream, setRemoteStream] = useState<MediaStream | undefined>();
+  const [myUniqueId, setMyUniqueId] = useState<string>("");
 
-  // 마우스 움직임 감지
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      if (currentStep === "intro") {
-        setCurrentStep("guide");
-      }
+  // URL에 ID 파라미터 추가하는 함수
+  const updateUrlWithId = (id: string) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("id", id);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
 
-      // guide 단계에서 마우스가 오른쪽 끝에 도달하면 recording으로 전환
-      if (currentStep === "guide") {
-        const screenWidth = window.innerWidth;
-        if (e.clientX >= screenWidth - 10) {
-          setCurrentStep("recording");
-        }
-      }
-    },
-    [currentStep]
-  );
-
-  // 마우스 이벤트 핸들러는 별도의 useEffect로 분리
   useEffect(() => {
-    window.addEventListener("mousemove", handleMouseMove);
+    // 고정 ID 대신 랜덤 ID 사용
+    const newId = generateUniqueId();
+    setMyUniqueId(newId);
+    // URL에 ID 추가
+    updateUrlWithId(newId);
+  }, []);
+
+  // PeerJS 설정
+  useEffect(() => {
+    if (!myUniqueId) return;
+
+    const peerConfig = getPeerConfig();
+    const peer = new Peer(myUniqueId, peerConfig);
+
+    peer.on("connection", (conn) => {
+      conn.on("data", (data: any) => {
+        if (data.type === "start-guide" && currentStep === "intro") {
+          setCurrentStep("guide");
+        } else if (data.type === "recorded-video") {
+          setRecordedVideoUrl(data.url);
+          setCurrentStep("ending");
+        }
+      });
+    });
+
+    // 통화 수신 처리
+    peer.on("call", (call) => {
+      console.log("Incoming call received.");
+
+      // 빈 스트림으로 응답 (screen 페이지는 카메라가 필요 없음)
+      const emptyStream = new MediaStream();
+      call.answer(emptyStream);
+
+      // 원격 스트림 수신
+      call.on("stream", (userVideoStream) => {
+        console.log("Remote stream received successfully");
+        setRemoteStream(userVideoStream);
+      });
+
+      call.on("close", () => {
+        console.log("Call ended.");
+        setRemoteStream(undefined);
+      });
+    });
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
+      peer.destroy();
     };
-  }, [handleMouseMove]);
+  }, [myUniqueId, currentStep]);
 
   const handleRecordingComplete = (videoUrl: string) => {
     console.log("Recording completed with URL:", videoUrl);
@@ -63,16 +99,16 @@ const DollySimple = () => {
         <ArcUserGuide onNext={() => setCurrentStep("recording")} />
       )}
       {currentStep === "recording" && (
-        <ArcRecording onRecordingComplete={handleRecordingComplete} />
+        <ArcRecording
+          onRecordingComplete={handleRecordingComplete}
+          stream={remoteStream}
+        />
       )}
       {currentStep === "ending" && (
-        <DollyEnding
-          recordedVideoUrl={recordedVideoUrl}
-          onReset={handleReset}
-        />
+        <ArcEnding recordedVideoUrl={recordedVideoUrl} onReset={handleReset} />
       )}
     </div>
   );
 };
 
-export default DollySimple;
+export default ArcSimple;

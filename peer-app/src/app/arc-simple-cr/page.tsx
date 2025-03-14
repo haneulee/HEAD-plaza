@@ -6,7 +6,7 @@ import Image from "next/image";
 import Peer from "peerjs";
 import { generateUniqueId } from "@/utils/generateUniqueId";
 
-const ZeroGravityCamera = () => {
+const ArcSimpleCamera = () => {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -145,9 +145,9 @@ const ZeroGravityCamera = () => {
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search);
       const id = urlParams.get("id");
-      return id || "zero-gravity-viewer"; // 기본값 제공
+      return id || "arc-simple-camera"; // 기본값 제공
     }
-    return "zero-gravity-viewer"; // 서버 사이드에서는 기본값 반환
+    return "arc-simple-camera"; // 서버 사이드에서는 기본값 반환
   };
 
   const startRecording = (stream: MediaStream) => {
@@ -534,8 +534,20 @@ const ZeroGravityCamera = () => {
     };
   }, [recordingTimer]);
 
+  const handleTouch = () => {
+    if (!isStreaming && peerInstance) {
+      const conn = peerInstance.connect(viewerId);
+      conn.on("open", () => {
+        conn.send({
+          type: "start-guide",
+        });
+        handleCall(); // 카메라 스트리밍 시작
+      });
+    }
+  };
+
   return (
-    <div className="relative h-[100dvh] w-[100dvw]">
+    <div className="relative h-[100dvh] w-[100dvw]" onTouchStart={handleTouch}>
       <video
         style={{
           width: "100%",
@@ -593,4 +605,4 @@ const ZeroGravityCamera = () => {
   );
 };
 
-export default ZeroGravityCamera;
+export default ArcSimpleCamera;
