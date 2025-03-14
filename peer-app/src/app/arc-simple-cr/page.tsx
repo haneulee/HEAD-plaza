@@ -294,64 +294,79 @@ const ArcSimpleCamera = () => {
     }
 
     // guide에서 recording으로 넘어가도록 메시지 전송
-    const conn = peerInstance.connect(viewerId);
-    conn.on("open", () => {
-      conn.send({
-        type: "start-recording",
+    try {
+      addDebugLog(`viewerId로 연결 시도: ${viewerId}`);
+      const conn = peerInstance.connect(viewerId);
+
+      conn.on("error", (err) => {
+        addDebugLog(`연결 에러: ${err}`);
       });
-    });
 
-    setCallStatus("미디어 스트림 요청 중...");
-
-    safeGetUserMedia()
-      .then((stream) => {
-        addDebugLog("미디어 스트림 획득 성공");
-
-        if (myVideoRef.current) {
-          myVideoRef.current.srcObject = stream;
-          addDebugLog("비디오 요소에 스트림 연결됨");
-        }
-
-        // 스트리밍 시작
-        const call = peerInstance.call(viewerId, stream);
-        addDebugLog("피어 호출 시도: " + viewerId);
-
-        if (!call) {
-          addDebugLog("통화 연결 실패");
-          setCallStatus("통화 연결에 실패했습니다. 상대방 ID를 확인해주세요.");
-          return;
-        }
-
-        setIsStreaming(true);
-        setCallStatus("스트리밍 시작됨");
-        addDebugLog("스트리밍 상태 true로 설정");
-
-        // 녹화 시작
-        startRecording(stream);
-        addDebugLog("녹화 시작됨");
-
-        call.on("stream", (userVideoStream) => {
-          addDebugLog("상대방 스트림 수신 성공");
-          setCallStatus("상대방 스트림 연결됨");
+      conn.on("open", () => {
+        addDebugLog("연결 성공, start-recording 메시지 전송");
+        conn.send({
+          type: "start-recording",
         });
-
-        call.on("error", (err) => {
-          addDebugLog(`통화 오류: ${err.toString()}`);
-          setCallStatus(`통화 오류: ${err.toString()}`);
-          setIsStreaming(false);
-        });
-
-        call.on("close", () => {
-          addDebugLog("통화 종료됨");
-          setCallStatus("통화가 종료되었습니다.");
-          setIsStreaming(false);
-        });
-      })
-      .catch((err) => {
-        addDebugLog(`통화 실패: ${err.toString()}`);
-        setCallStatus(`통화 실패: ${err.toString()}`);
-        setIsStreaming(false);
       });
+
+      // 미디어 스트림 설정은 메시지 전송 성공 후에 시작
+      conn.on("open", () => {
+        setCallStatus("미디어 스트림 요청 중...");
+        safeGetUserMedia()
+          .then((stream) => {
+            addDebugLog("미디어 스트림 획득 성공");
+
+            if (myVideoRef.current) {
+              myVideoRef.current.srcObject = stream;
+              addDebugLog("비디오 요소에 스트림 연결됨");
+            }
+
+            // 스트리밍 시작
+            const call = peerInstance.call(viewerId, stream);
+            addDebugLog("피어 호출 시도: " + viewerId);
+
+            if (!call) {
+              addDebugLog("통화 연결 실패");
+              setCallStatus(
+                "통화 연결에 실패했습니다. 상대방 ID를 확인해주세요."
+              );
+              return;
+            }
+
+            setIsStreaming(true);
+            setCallStatus("스트리밍 시작됨");
+            addDebugLog("스트리밍 상태 true로 설정");
+
+            // 녹화 시작
+            startRecording(stream);
+            addDebugLog("녹화 시작됨");
+
+            call.on("stream", (userVideoStream) => {
+              addDebugLog("상대방 스트림 수신 성공");
+              setCallStatus("상대방 스트림 연결됨");
+            });
+
+            call.on("error", (err) => {
+              addDebugLog(`통화 오류: ${err.toString()}`);
+              setCallStatus(`통화 오류: ${err.toString()}`);
+              setIsStreaming(false);
+            });
+
+            call.on("close", () => {
+              addDebugLog("통화 종료됨");
+              setCallStatus("통화가 종료되었습니다.");
+              setIsStreaming(false);
+            });
+          })
+          .catch((err) => {
+            addDebugLog(`통화 실패: ${err.toString()}`);
+            setCallStatus(`통화 실패: ${err.toString()}`);
+            setIsStreaming(false);
+          });
+      });
+    } catch (error) {
+      addDebugLog(`handleCall 에러: ${error}`);
+    }
   };
 
   const handleCut = async () => {
